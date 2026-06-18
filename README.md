@@ -1,1 +1,15 @@
-# somaz94-compress-decompress
+# somaz94/compress-decompress
+
+GitHub Action to compress or decompress files using various formats like zip, tar, tgz, and tbz2.
+
+Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/somaz94/compress-decompress](https://github.com/somaz94/compress-decompress).
+
+## Versions
+
+| Version | Tag | Upstream commit |
+|---------|-----|-----------------|
+| v1.9.0 | [`v1.9.0`](https://github.com/chainguard-actions/somaz94-compress-decompress/tree/v1.9.0) | [`173ca1e`](https://github.com/somaz94/compress-decompress/commit/173ca1ec02e20ccdd9db29e4235af72cf2c379b1) |
+
+## Privacy
+
+This Action contacts Chainguard's licensing server to verify authorization. Connection metadata (IP address, GitHub repository identifier, timestamp, and any metadata encoded in the auth token) is transmitted to Chainguard, Inc. even if authorization is denied in accordance with our [Privacy Notice](https://www.chainguard.dev/legal/privacy-notice)
