@@ -1,0 +1,41 @@
+name: Test decompress zip
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create and compress a zip file for testing
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/decomp-source"
+          echo "hello from zip" > "$GITHUB_WORKSPACE/decomp-source/hello.txt"
+          echo "another file" > "$GITHUB_WORKSPACE/decomp-source/world.txt"
+          mkdir -p "$GITHUB_WORKSPACE/decomp-archive"
+          cd "$GITHUB_WORKSPACE" && zip -r "$GITHUB_WORKSPACE/decomp-archive/test.zip" decomp-source/
+          mkdir -p "$GITHUB_WORKSPACE/decomp-output"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: decomp-archive/test.zip
+          dest: decomp-output
+          format: zip
+
+      - name: Assert decompressed files exist
+        run: |
+          echo "Listing $GITHUB_WORKSPACE/decomp-output:"
+          find "$GITHUB_WORKSPACE/decomp-output" -type f || echo "No files found"
+          if [ ! -d "$GITHUB_WORKSPACE/decomp-output" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/decomp-output directory to exist"
+            exit 1
+          fi
+          FILE_COUNT=$(find "$GITHUB_WORKSPACE/decomp-output" -type f | wc -l)
+          echo "Found $FILE_COUNT file(s)"
+          if [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: expected at least 1 file to be decompressed"
+            exit 1
+          fi
+          echo "PASS: files were decompressed successfully"

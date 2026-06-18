@@ -1,0 +1,46 @@
+name: Test compress with glob pattern
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files matching a glob pattern
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-glob-source/docs"
+          echo "doc one" > "$GITHUB_WORKSPACE/test-glob-source/docs/doc1.txt"
+          echo "doc two" > "$GITHUB_WORKSPACE/test-glob-source/docs/doc2.txt"
+          echo "not a doc" > "$GITHUB_WORKSPACE/test-glob-source/docs/other.log"
+          mkdir -p "$GITHUB_WORKSPACE/test-glob-output"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-glob-source/docs/*.txt
+          dest: test-glob-output
+          destfilename: docs-archive
+          format: zip
+
+      - name: Assert zip file was created from glob pattern
+        run: |
+          echo "Checking for zip file at $GITHUB_WORKSPACE/test-glob-output/docs-archive.zip"
+          if [ ! -f "$GITHUB_WORKSPACE/test-glob-output/docs-archive.zip" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/test-glob-output/docs-archive.zip to exist"
+            ls -la "$GITHUB_WORKSPACE/test-glob-output/" || echo "output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: zip file from glob pattern exists"
+
+      - name: Assert zip file is valid and contains txt files
+        run: |
+          CONTENTS=$(unzip -l "$GITHUB_WORKSPACE/test-glob-output/docs-archive.zip")
+          echo "Archive contents:"
+          echo "$CONTENTS"
+          if ! echo "$CONTENTS" | grep -q "\.txt"; then
+            echo "FAIL: expected .txt files in the archive"
+            exit 1
+          fi
+          echo "PASS: zip file contains txt files from glob pattern"

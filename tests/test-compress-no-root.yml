@@ -1,0 +1,47 @@
+name: Test compress without root folder
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source directory with files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-noroot-source"
+          echo "file without root" > "$GITHUB_WORKSPACE/test-noroot-source/file.txt"
+          echo "another file" > "$GITHUB_WORKSPACE/test-noroot-source/file2.txt"
+          mkdir -p "$GITHUB_WORKSPACE/test-noroot-output"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-noroot-source
+          dest: test-noroot-output
+          destfilename: archive
+          format: zip
+          includeRoot: "false"
+
+      - name: Assert zip file was created
+        run: |
+          echo "Checking for zip file at $GITHUB_WORKSPACE/test-noroot-output/archive.zip"
+          if [ ! -f "$GITHUB_WORKSPACE/test-noroot-output/archive.zip" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/test-noroot-output/archive.zip to exist"
+            ls -la "$GITHUB_WORKSPACE/test-noroot-output/" || echo "output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: zip file exists"
+
+      - name: Assert zip does not contain root folder prefix
+        run: |
+          CONTENTS=$(unzip -l "$GITHUB_WORKSPACE/test-noroot-output/archive.zip")
+          echo "Archive contents:"
+          echo "$CONTENTS"
+          # When includeRoot=false, files should be at root level (not under test-noroot-source/)
+          if echo "$CONTENTS" | grep -q "test-noroot-source/"; then
+            echo "FAIL: archive should not contain the root folder 'test-noroot-source/'"
+            exit 1
+          fi
+          echo "PASS: archive does not contain root folder prefix"

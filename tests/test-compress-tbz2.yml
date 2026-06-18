@@ -1,0 +1,43 @@
+name: Test compress tbz2
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source directory with files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-tbz2-source"
+          echo "bzip2 compressed content" > "$GITHUB_WORKSPACE/test-tbz2-source/file.txt"
+          echo "more bzip2 content" > "$GITHUB_WORKSPACE/test-tbz2-source/file2.txt"
+          mkdir -p "$GITHUB_WORKSPACE/test-tbz2-output"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-tbz2-source
+          dest: test-tbz2-output
+          destfilename: archive
+          format: tbz2
+
+      - name: Assert tbz2 file was created
+        run: |
+          echo "Checking for tbz2 file at $GITHUB_WORKSPACE/test-tbz2-output/archive.tbz2"
+          if [ ! -f "$GITHUB_WORKSPACE/test-tbz2-output/archive.tbz2" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/test-tbz2-output/archive.tbz2 to exist"
+            ls -la "$GITHUB_WORKSPACE/test-tbz2-output/" || echo "output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: tbz2 file exists"
+
+      - name: Assert tbz2 file is valid
+        run: |
+          tar -tjf "$GITHUB_WORKSPACE/test-tbz2-output/archive.tbz2"
+          if [ $? -ne 0 ]; then
+            echo "FAIL: tbz2 file is not valid"
+            exit 1
+          fi
+          echo "PASS: tbz2 file is valid"

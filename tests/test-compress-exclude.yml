@@ -1,0 +1,56 @@
+name: Test compress with exclude
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source directory with files including one to exclude
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-exclude-source"
+          echo "keep this file" > "$GITHUB_WORKSPACE/test-exclude-source/keep.txt"
+          echo "also keep this" > "$GITHUB_WORKSPACE/test-exclude-source/keep2.txt"
+          echo "exclude this file" > "$GITHUB_WORKSPACE/test-exclude-source/secret.txt"
+          mkdir -p "$GITHUB_WORKSPACE/test-exclude-output"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-exclude-source
+          dest: test-exclude-output
+          destfilename: archive
+          format: zip
+          exclude: secret.txt
+
+      - name: Assert zip file was created
+        run: |
+          echo "Checking for zip file at $GITHUB_WORKSPACE/test-exclude-output/archive.zip"
+          if [ ! -f "$GITHUB_WORKSPACE/test-exclude-output/archive.zip" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/test-exclude-output/archive.zip to exist"
+            ls -la "$GITHUB_WORKSPACE/test-exclude-output/" || echo "output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: zip file exists"
+
+      - name: Assert excluded file is not in the archive
+        run: |
+          CONTENTS=$(unzip -l "$GITHUB_WORKSPACE/test-exclude-output/archive.zip")
+          echo "Archive contents:"
+          echo "$CONTENTS"
+          if echo "$CONTENTS" | grep -q "secret.txt"; then
+            echo "FAIL: secret.txt should have been excluded from the archive"
+            exit 1
+          fi
+          echo "PASS: secret.txt was correctly excluded"
+
+      - name: Assert non-excluded files are in the archive
+        run: |
+          CONTENTS=$(unzip -l "$GITHUB_WORKSPACE/test-exclude-output/archive.zip")
+          if ! echo "$CONTENTS" | grep -q "keep.txt"; then
+            echo "FAIL: keep.txt should be in the archive"
+            exit 1
+          fi
+          echo "PASS: keep.txt is present in the archive"

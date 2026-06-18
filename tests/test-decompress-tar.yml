@@ -1,0 +1,41 @@
+name: Test decompress tar
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create and compress a tar file for testing
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tar-decomp-source"
+          echo "tar content" > "$GITHUB_WORKSPACE/tar-decomp-source/readme.txt"
+          echo "more tar content" > "$GITHUB_WORKSPACE/tar-decomp-source/data.txt"
+          mkdir -p "$GITHUB_WORKSPACE/tar-decomp-archive"
+          tar -cf "$GITHUB_WORKSPACE/tar-decomp-archive/test.tar" -C "$GITHUB_WORKSPACE" tar-decomp-source/
+          mkdir -p "$GITHUB_WORKSPACE/tar-decomp-output"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: tar-decomp-archive/test.tar
+          dest: tar-decomp-output
+          format: tar
+
+      - name: Assert decompressed files exist
+        run: |
+          echo "Listing $GITHUB_WORKSPACE/tar-decomp-output:"
+          find "$GITHUB_WORKSPACE/tar-decomp-output" -type f || echo "No files found"
+          if [ ! -d "$GITHUB_WORKSPACE/tar-decomp-output" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/tar-decomp-output directory to exist"
+            exit 1
+          fi
+          FILE_COUNT=$(find "$GITHUB_WORKSPACE/tar-decomp-output" -type f | wc -l)
+          echo "Found $FILE_COUNT file(s)"
+          if [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: expected at least 1 file to be decompressed"
+            exit 1
+          fi
+          echo "PASS: tar files were decompressed successfully"

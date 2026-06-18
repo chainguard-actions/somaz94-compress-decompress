@@ -1,0 +1,41 @@
+name: Test decompress tgz
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create and compress a tgz file for testing
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tgz-decomp-source"
+          echo "content in tgz" > "$GITHUB_WORKSPACE/tgz-decomp-source/readme.txt"
+          echo "more content" > "$GITHUB_WORKSPACE/tgz-decomp-source/data.txt"
+          mkdir -p "$GITHUB_WORKSPACE/tgz-decomp-archive"
+          tar -czf "$GITHUB_WORKSPACE/tgz-decomp-archive/test.tgz" -C "$GITHUB_WORKSPACE" tgz-decomp-source/
+          mkdir -p "$GITHUB_WORKSPACE/tgz-decomp-output"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: tgz-decomp-archive/test.tgz
+          dest: tgz-decomp-output
+          format: tgz
+
+      - name: Assert decompressed files exist
+        run: |
+          echo "Listing $GITHUB_WORKSPACE/tgz-decomp-output:"
+          find "$GITHUB_WORKSPACE/tgz-decomp-output" -type f || echo "No files found"
+          if [ ! -d "$GITHUB_WORKSPACE/tgz-decomp-output" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/tgz-decomp-output directory to exist"
+            exit 1
+          fi
+          FILE_COUNT=$(find "$GITHUB_WORKSPACE/tgz-decomp-output" -type f | wc -l)
+          echo "Found $FILE_COUNT file(s)"
+          if [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: expected at least 1 file to be decompressed"
+            exit 1
+          fi
+          echo "PASS: tgz files were decompressed successfully"

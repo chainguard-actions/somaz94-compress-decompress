@@ -1,0 +1,43 @@
+name: Test compress with verbose logging
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source directory with files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-verbose-source"
+          echo "verbose test content" > "$GITHUB_WORKSPACE/test-verbose-source/verbose.txt"
+          mkdir -p "$GITHUB_WORKSPACE/test-verbose-output"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-verbose-source
+          dest: test-verbose-output
+          destfilename: archive
+          format: tgz
+          verbose: "true"
+
+      - name: Assert tgz file was created with verbose mode
+        run: |
+          echo "Checking for tgz file at $GITHUB_WORKSPACE/test-verbose-output/archive.tgz"
+          if [ ! -f "$GITHUB_WORKSPACE/test-verbose-output/archive.tgz" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/test-verbose-output/archive.tgz to exist"
+            ls -la "$GITHUB_WORKSPACE/test-verbose-output/" || echo "output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: tgz file exists with verbose mode enabled"
+
+      - name: Assert tgz file is valid
+        run: |
+          tar -tzf "$GITHUB_WORKSPACE/test-verbose-output/archive.tgz"
+          if [ $? -ne 0 ]; then
+            echo "FAIL: tgz file is not valid"
+            exit 1
+          fi
+          echo "PASS: tgz file is valid"

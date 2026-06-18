@@ -1,0 +1,43 @@
+name: Test compress tar
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source directory with files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-tar-source"
+          echo "tar file content" > "$GITHUB_WORKSPACE/test-tar-source/data.txt"
+          echo "more data" > "$GITHUB_WORKSPACE/test-tar-source/data2.txt"
+          mkdir -p "$GITHUB_WORKSPACE/test-tar-output"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-tar-source
+          dest: test-tar-output
+          destfilename: archive
+          format: tar
+
+      - name: Assert tar file was created
+        run: |
+          echo "Checking for tar file at $GITHUB_WORKSPACE/test-tar-output/archive.tar"
+          if [ ! -f "$GITHUB_WORKSPACE/test-tar-output/archive.tar" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/test-tar-output/archive.tar to exist"
+            ls -la "$GITHUB_WORKSPACE/test-tar-output/" || echo "output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: tar file exists"
+
+      - name: Assert tar file is valid
+        run: |
+          tar -tf "$GITHUB_WORKSPACE/test-tar-output/archive.tar"
+          if [ $? -ne 0 ]; then
+            echo "FAIL: tar file is not valid"
+            exit 1
+          fi
+          echo "PASS: tar file is valid"

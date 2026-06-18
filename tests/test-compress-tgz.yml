@@ -1,0 +1,44 @@
+name: Test compress tgz
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source directory with files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-tgz-source/subdir"
+          echo "file one content" > "$GITHUB_WORKSPACE/test-tgz-source/file1.txt"
+          echo "file two content" > "$GITHUB_WORKSPACE/test-tgz-source/file2.txt"
+          echo "nested file" > "$GITHUB_WORKSPACE/test-tgz-source/subdir/nested.txt"
+          mkdir -p "$GITHUB_WORKSPACE/test-tgz-output"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-tgz-source
+          dest: test-tgz-output
+          destfilename: archive
+          format: tgz
+
+      - name: Assert tgz file was created
+        run: |
+          echo "Checking for tgz file at $GITHUB_WORKSPACE/test-tgz-output/archive.tgz"
+          if [ ! -f "$GITHUB_WORKSPACE/test-tgz-output/archive.tgz" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/test-tgz-output/archive.tgz to exist"
+            ls -la "$GITHUB_WORKSPACE/test-tgz-output/" || echo "output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: tgz file exists"
+
+      - name: Assert tgz file is valid and contains expected files
+        run: |
+          tar -tzf "$GITHUB_WORKSPACE/test-tgz-output/archive.tgz"
+          if [ $? -ne 0 ]; then
+            echo "FAIL: tgz file is not valid"
+            exit 1
+          fi
+          echo "PASS: tgz file is valid"

@@ -1,0 +1,67 @@
+name: "Compress/Decompress"
+description:
+  "GitHub Action to compress or decompress files using various formats like zip,
+  tar, tgz, and tbz2."
+author: "somaz94"
+inputs:
+  command:
+    description: 'Command to perform ("compress" or "decompress").'
+    required: true
+  source:
+    description: "Source directory, file, or glob pattern to compress or decompress. Supports glob patterns like **/*.doc to match multiple files."
+    required: true
+  dest:
+    description: "Destination directory for the output."
+    required: false
+  destfilename:
+    description: "Destination filename for the compressed output."
+    required: false
+  exclude:
+    description: "File(s) to exclude from compression process."
+    required: false
+  format:
+    description:
+      "Compression format to use. Supported formats include zip, tar, tgz, and
+      tbz2."
+    required: true
+  includeRoot:
+    description: "Whether to include the root folder itself in the compressed file."
+    required: false
+    default: "true"
+  preserveGlobStructure:
+    description: "When using glob patterns, preserve the directory structure in the archive. If false, all matched files are flattened to the root level."
+    required: false
+    default: "false"
+  stripPrefix:
+    description: "Remove this prefix from file paths when preserving directory structure. Works only with glob patterns and preserveGlobStructure: true. Example: 'src/' will change 'src/app/main.py' to 'app/main.py' in the archive."
+    required: false
+    default: ""
+  fail_on_error:
+    description: "Whether to fail the action if compression/decompression fails."
+    required: false
+    default: "true"
+  verbose:
+    description: "Enable verbose logging for debugging."
+    required: false
+    default: "false"
+outputs:
+  file_path:
+    description: "The path to the compressed or decompressed file."
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  env:
+    COMMAND: ${{ inputs.command }}
+    SOURCE: ${{ inputs.source }}
+    DEST: ${{ inputs.dest }}
+    DESTFILENAME: ${{ inputs.destfilename }}
+    EXCLUDE: ${{ inputs.exclude }}
+    FORMAT: ${{ inputs.format }}
+    INCLUDEROOT: ${{ inputs.includeRoot }}
+    PRESERVE_GLOB_STRUCTURE: ${{ inputs.preserveGlobStructure }}
+    STRIP_PREFIX: ${{ inputs.stripPrefix }}
+    FAIL_ON_ERROR: ${{ inputs.fail_on_error }}
+    VERBOSE: ${{ inputs.verbose }}
+branding:
+  icon: "archive"
+  color: "blue"
