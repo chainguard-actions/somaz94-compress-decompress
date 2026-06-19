@@ -1,0 +1,56 @@
+name: Test compress tbz2
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source directory with files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-tbz2-source"
+          echo "tbz2 test content" > "$GITHUB_WORKSPACE/test-tbz2-source/file1.txt"
+          echo "more tbz2 content" > "$GITHUB_WORKSPACE/test-tbz2-source/file2.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-tbz2-source
+          dest: test-tbz2-output
+          destfilename: archive
+          format: tbz2
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is set to $FILE_PATH"
+
+      - name: Assert tbz2 file exists
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/test-tbz2-output/archive.tbz2" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/test-tbz2-output/archive.tbz2 to exist"
+            ls -la "$GITHUB_WORKSPACE/test-tbz2-output/" || echo "output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: archive.tbz2 exists"
+
+      - name: Assert tbz2 file is valid and contains expected files
+        run: |
+          CONTENTS=$(tar -tjf "$GITHUB_WORKSPACE/test-tbz2-output/archive.tbz2")
+          echo "Archive contents:"
+          echo "$CONTENTS"
+          if echo "$CONTENTS" | grep -q "file1.txt"; then
+            echo "PASS: file1.txt is in archive"
+          else
+            echo "FAIL: file1.txt should be in archive"
+            exit 1
+          fi

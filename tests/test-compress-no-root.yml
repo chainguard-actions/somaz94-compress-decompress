@@ -1,0 +1,56 @@
+name: Test compress without root folder
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source directory with files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-noroot-source"
+          echo "file without root" > "$GITHUB_WORKSPACE/test-noroot-source/content.txt"
+          echo "another file" > "$GITHUB_WORKSPACE/test-noroot-source/data.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-noroot-source
+          dest: test-noroot-output
+          destfilename: noroot-archive
+          format: zip
+          includeRoot: "false"
+          verbose: "true"
+
+      - name: Assert zip file exists
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/test-noroot-output/noroot-archive.zip" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/test-noroot-output/noroot-archive.zip to exist"
+            ls -la "$GITHUB_WORKSPACE/test-noroot-output/" || echo "output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: noroot-archive.zip exists"
+
+      - name: Assert zip file is valid
+        run: |
+          unzip -t "$GITHUB_WORKSPACE/test-noroot-output/noroot-archive.zip"
+          echo "PASS: zip file is valid"
+
+      - name: Assert zip does not contain root folder prefix
+        run: |
+          CONTENTS=$(unzip -l "$GITHUB_WORKSPACE/test-noroot-output/noroot-archive.zip")
+          echo "Archive contents:"
+          echo "$CONTENTS"
+          # When includeRoot is false, files should be at root level, not under test-noroot-source/
+          if echo "$CONTENTS" | grep -q "test-noroot-source/content.txt"; then
+            echo "FAIL: root folder should not be included in archive"
+            exit 1
+          fi
+          if echo "$CONTENTS" | grep -q "content.txt"; then
+            echo "PASS: content.txt is at root level (no root folder prefix)"
+          else
+            echo "FAIL: content.txt not found in archive"
+            exit 1
+          fi

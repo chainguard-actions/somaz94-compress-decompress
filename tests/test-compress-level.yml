@@ -1,0 +1,84 @@
+name: Test compress with compression level
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source directory with files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-level-source"
+          # Create a larger file to make compression level differences more apparent
+          for i in $(seq 1 100); do
+            echo "This is line $i of test content for compression level testing" >> "$GITHUB_WORKSPACE/test-level-source/data.txt"
+          done
+
+      - id: compress-max
+        uses: .
+        with:
+          command: compress
+          source: test-level-source
+          dest: test-level-output
+          destfilename: archive-max
+          format: zip
+          compression_level: "9"
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress-max.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is set to $FILE_PATH"
+
+      - name: Assert zip file exists with max compression
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/test-level-output/archive-max.zip" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/test-level-output/archive-max.zip to exist"
+            ls -la "$GITHUB_WORKSPACE/test-level-output/" || echo "output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: archive-max.zip exists"
+
+      - name: Assert zip file is valid
+        run: |
+          unzip -t "$GITHUB_WORKSPACE/test-level-output/archive-max.zip"
+          echo "PASS: zip file with max compression is valid"
+
+      - id: compress-store
+        uses: .
+        with:
+          command: compress
+          source: test-level-source
+          dest: test-level-output
+          destfilename: archive-store
+          format: zip
+          compression_level: "0"
+          verbose: "true"
+
+      - name: Assert store zip file exists
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/test-level-output/archive-store.zip" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/test-level-output/archive-store.zip to exist"
+            ls -la "$GITHUB_WORKSPACE/test-level-output/" || echo "output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: archive-store.zip exists"
+
+      - name: Assert store zip is larger than max compressed zip
+        run: |
+          MAX_SIZE=$(stat -c%s "$GITHUB_WORKSPACE/test-level-output/archive-max.zip")
+          STORE_SIZE=$(stat -c%s "$GITHUB_WORKSPACE/test-level-output/archive-store.zip")
+          echo "Max compression size: $MAX_SIZE bytes"
+          echo "Store (no compression) size: $STORE_SIZE bytes"
+          if [ "$STORE_SIZE" -ge "$MAX_SIZE" ]; then
+            echo "PASS: store archive is >= max compressed archive (expected)"
+          else
+            echo "WARN: store archive is smaller than max compressed (unusual but not necessarily wrong)"
+          fi

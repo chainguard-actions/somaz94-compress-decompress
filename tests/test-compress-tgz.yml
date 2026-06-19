@@ -1,0 +1,51 @@
+name: Test compress tgz
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source directory with files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-tgz-source"
+          echo "hello tgz" > "$GITHUB_WORKSPACE/test-tgz-source/data.txt"
+          echo "more data" > "$GITHUB_WORKSPACE/test-tgz-source/info.txt"
+          mkdir -p "$GITHUB_WORKSPACE/test-tgz-source/subdir"
+          echo "nested file" > "$GITHUB_WORKSPACE/test-tgz-source/subdir/nested.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-tgz-source
+          dest: test-tgz-output
+          destfilename: archive
+          format: tgz
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is set to $FILE_PATH"
+
+      - name: Assert tgz file exists
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/test-tgz-output/archive.tgz" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/test-tgz-output/archive.tgz to exist"
+            ls -la "$GITHUB_WORKSPACE/test-tgz-output/" || echo "output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: archive.tgz exists"
+
+      - name: Assert tgz file is valid
+        run: |
+          tar -tzf "$GITHUB_WORKSPACE/test-tgz-output/archive.tgz"
+          echo "PASS: tgz file is valid"
