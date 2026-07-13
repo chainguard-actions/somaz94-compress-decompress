@@ -1,6 +1,6 @@
 # somaz94/compress-decompress
 
-GitHub Action to compress or decompress files using various formats like zip, tar, tgz, and tbz2.
+GitHub Action to compress or decompress files using various formats like zip, tar, tgz, tbz2, and txz.
 
 Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/somaz94/compress-decompress](https://github.com/somaz94/compress-decompress).
 
