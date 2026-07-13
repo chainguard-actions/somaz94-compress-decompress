@@ -1,0 +1,56 @@
+name: Test compress without root folder
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-noroot-source"
+          echo "Hello World" > "$GITHUB_WORKSPACE/test-noroot-source/hello.txt"
+          echo "Another file" > "$GITHUB_WORKSPACE/test-noroot-source/another.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-noroot-source
+          dest: test-noroot-output
+          destfilename: archive-noroot
+          format: zip
+          includeRoot: "false"
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive file exists
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/test-noroot-output/archive-noroot.zip" ]; then
+            echo "FAIL: expected archive not found"
+            ls -la "$GITHUB_WORKSPACE/test-noroot-output/" || echo "Output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: archive exists"
+
+      - name: Assert archive is valid and files are at root level
+        run: |
+          CONTENTS=$(unzip -l "$GITHUB_WORKSPACE/test-noroot-output/archive-noroot.zip")
+          echo "Archive contents:"
+          echo "$CONTENTS"
+          if ! unzip -t "$GITHUB_WORKSPACE/test-noroot-output/archive-noroot.zip"; then
+            echo "FAIL: archive is not a valid zip"
+            exit 1
+          fi
+          echo "PASS: archive is valid"

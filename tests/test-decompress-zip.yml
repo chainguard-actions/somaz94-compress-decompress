@@ -1,0 +1,56 @@
+name: Test decompress zip
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create and compress source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/decomp-source"
+          echo "Hello World" > "$GITHUB_WORKSPACE/decomp-source/hello.txt"
+          echo "Another file" > "$GITHUB_WORKSPACE/decomp-source/another.txt"
+          mkdir -p "$GITHUB_WORKSPACE/decomp-archive"
+          cd "$GITHUB_WORKSPACE" && zip -r "$GITHUB_WORKSPACE/decomp-archive/test.zip" decomp-source/
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: decomp-archive/test.zip
+          dest: decomp-output
+          format: zip
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert decompressed files exist
+        run: |
+          echo "Contents of $GITHUB_WORKSPACE/decomp-output:"
+          find "$GITHUB_WORKSPACE/decomp-output" -type f || echo "No files found"
+          if ! find "$GITHUB_WORKSPACE/decomp-output" -name "hello.txt" | grep -q .; then
+            echo "FAIL: expected decompressed file hello.txt not found"
+            exit 1
+          fi
+          echo "PASS: decompressed files exist"
+
+      - name: Assert decompressed file content is correct
+        run: |
+          CONTENT=$(find "$GITHUB_WORKSPACE/decomp-output" -name "hello.txt" -exec cat {} \;)
+          echo "content: $CONTENT"
+          if [ "$CONTENT" != "Hello World" ]; then
+            echo "FAIL: expected 'Hello World' but got '$CONTENT'"
+            exit 1
+          fi
+          echo "PASS: file content is correct"

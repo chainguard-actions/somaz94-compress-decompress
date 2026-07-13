@@ -1,0 +1,46 @@
+name: Test decompress tgz
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create and compress source files as tgz
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tgz-source"
+          echo "Hello World" > "$GITHUB_WORKSPACE/tgz-source/hello.txt"
+          echo "Another file" > "$GITHUB_WORKSPACE/tgz-source/another.txt"
+          mkdir -p "$GITHUB_WORKSPACE/tgz-archive"
+          tar -czf "$GITHUB_WORKSPACE/tgz-archive/test.tgz" -C "$GITHUB_WORKSPACE" tgz-source/
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: tgz-archive/test.tgz
+          dest: tgz-output
+          format: tgz
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert decompressed files exist
+        run: |
+          echo "Contents of $GITHUB_WORKSPACE/tgz-output:"
+          find "$GITHUB_WORKSPACE/tgz-output" -type f || echo "No files found"
+          if ! find "$GITHUB_WORKSPACE/tgz-output" -name "hello.txt" | grep -q .; then
+            echo "FAIL: expected decompressed file hello.txt not found"
+            exit 1
+          fi
+          echo "PASS: decompressed files exist"

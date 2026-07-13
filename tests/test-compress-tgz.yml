@@ -1,0 +1,65 @@
+name: Test compress tgz
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-source-tgz"
+          echo "Hello World" > "$GITHUB_WORKSPACE/test-source-tgz/hello.txt"
+          echo "Another file" > "$GITHUB_WORKSPACE/test-source-tgz/another.txt"
+          mkdir -p "$GITHUB_WORKSPACE/test-source-tgz/subdir"
+          echo "Nested file" > "$GITHUB_WORKSPACE/test-source-tgz/subdir/nested.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-source-tgz
+          dest: test-output-tgz
+          destfilename: archive
+          format: tgz
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert checksum output is set
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          echo "PASS: checksum=$CHECKSUM"
+
+      - name: Assert archive file exists
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/test-output-tgz/archive.tgz" ]; then
+            echo "FAIL: expected archive not found"
+            ls -la "$GITHUB_WORKSPACE/test-output-tgz/" || echo "Output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: archive exists"
+
+      - name: Assert archive is a valid tgz
+        run: |
+          if ! tar -tzf "$GITHUB_WORKSPACE/test-output-tgz/archive.tgz" > /dev/null; then
+            echo "FAIL: archive is not a valid tgz"
+            exit 1
+          fi
+          echo "PASS: archive is valid tgz"

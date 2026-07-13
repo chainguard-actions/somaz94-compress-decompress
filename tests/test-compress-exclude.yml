@@ -1,0 +1,75 @@
+name: Test compress with exclude
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create test files
+        run: |
+          mkdir -p /tmp/test-exclude-src
+          echo "keep this file" > /tmp/test-exclude-src/keep.txt
+          echo "exclude this file" > /tmp/test-exclude-src/exclude-me.txt
+          mkdir -p /tmp/test-exclude-dest
+
+      - id: action
+        uses: .
+        with:
+          command: compress
+          source: /tmp/test-exclude-src
+          dest: /tmp/test-exclude-dest
+          destfilename: output-excluded
+          format: zip
+          exclude: /tmp/test-exclude-src/exclude-me.txt
+          includeRoot: "false"
+          verbose: "true"
+
+      - name: Assert archive was created
+        env:
+          FILE_PATH: ${{ steps.action.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          if [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: archive file does not exist at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: archive exists at $FILE_PATH"
+
+      - name: Assert excluded file is not in archive
+        env:
+          FILE_PATH: ${{ steps.action.outputs.file_path }}
+        run: |
+          echo "Listing archive contents:"
+          unzip -l "$FILE_PATH"
+          if unzip -l "$FILE_PATH" | grep -q "exclude-me.txt"; then
+            echo "FAIL: excluded file 'exclude-me.txt' found in archive"
+            exit 1
+          fi
+          echo "PASS: excluded file is not in archive"
+
+      - name: Assert kept file is in archive
+        env:
+          FILE_PATH: ${{ steps.action.outputs.file_path }}
+        run: |
+          if ! unzip -l "$FILE_PATH" | grep -q "keep.txt"; then
+            echo "FAIL: expected file 'keep.txt' not found in archive"
+            exit 1
+          fi
+          echo "PASS: keep.txt is present in archive"
+
+      - name: Assert checksum output is set
+        env:
+          CHECKSUM: ${{ steps.action.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          echo "PASS: checksum is set"
