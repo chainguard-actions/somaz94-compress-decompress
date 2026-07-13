@@ -1,0 +1,57 @@
+name: Test decompress zip
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create and compress source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/decomp-source"
+          echo "Hello from zip" > "$GITHUB_WORKSPACE/decomp-source/hello.txt"
+          echo "Another file" > "$GITHUB_WORKSPACE/decomp-source/world.txt"
+          mkdir -p "$GITHUB_WORKSPACE/decomp-archive"
+          cd "$GITHUB_WORKSPACE" && zip -r "$GITHUB_WORKSPACE/decomp-archive/test.zip" decomp-source/
+          mkdir -p "$GITHUB_WORKSPACE/decomp-output"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: decomp-archive/test.zip
+          dest: decomp-output
+          format: zip
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          ACTUAL: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "actual file_path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$ACTUAL"
+
+      - name: Assert decompressed files exist
+        run: |
+          echo "Listing $GITHUB_WORKSPACE/decomp-output:"
+          find "$GITHUB_WORKSPACE/decomp-output" -type f | sort
+          if ! find "$GITHUB_WORKSPACE/decomp-output" -name "hello.txt" | grep -q .; then
+            echo "FAIL: hello.txt not found in decompressed output"
+            exit 1
+          fi
+          echo "PASS: decompressed files found"
+
+      - name: Assert file content is correct
+        run: |
+          CONTENT=$(find "$GITHUB_WORKSPACE/decomp-output" -name "hello.txt" -exec cat {} \;)
+          echo "Content: $CONTENT"
+          if [ "$CONTENT" != "Hello from zip" ]; then
+            echo "FAIL: file content does not match expected"
+            exit 1
+          fi
+          echo "PASS: file content matches"

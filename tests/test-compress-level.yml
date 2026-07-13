@@ -1,0 +1,85 @@
+name: Test compress with compression level
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/level-source"
+          # Create a larger file to make compression level differences visible
+          python3 -c "print('A' * 10000)" > "$GITHUB_WORKSPACE/level-source/large.txt"
+          echo "Small file" > "$GITHUB_WORKSPACE/level-source/small.txt"
+          mkdir -p "$GITHUB_WORKSPACE/level-output-fast"
+          mkdir -p "$GITHUB_WORKSPACE/level-output-max"
+
+      - name: Compress with level 1 (fast)
+        id: compress-fast
+        uses: .
+        with:
+          command: compress
+          source: level-source
+          dest: level-output-fast
+          destfilename: archive-fast
+          format: zip
+          compression_level: "1"
+          verbose: "true"
+
+      - name: Assert fast compress file_path output is set
+        env:
+          ACTUAL: ${{ steps.compress-fast.outputs.file_path }}
+        run: |
+          echo "actual file_path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$ACTUAL"
+
+      - name: Assert fast compress archive exists
+        run: |
+          HOST_PATH="$GITHUB_WORKSPACE/level-output-fast/archive-fast.zip"
+          if [ ! -f "$HOST_PATH" ]; then
+            echo "FAIL: fast compress archive does not exist at $HOST_PATH"
+            exit 1
+          fi
+          echo "PASS: fast compress archive exists"
+
+      - name: Compress with level 9 (max)
+        id: compress-max
+        uses: .
+        with:
+          command: compress
+          source: level-source
+          dest: level-output-max
+          destfilename: archive-max
+          format: zip
+          compression_level: "9"
+          verbose: "true"
+
+      - name: Assert max compress file_path output is set
+        env:
+          ACTUAL: ${{ steps.compress-max.outputs.file_path }}
+        run: |
+          echo "actual file_path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$ACTUAL"
+
+      - name: Assert max compress archive exists and is valid
+        run: |
+          HOST_PATH="$GITHUB_WORKSPACE/level-output-max/archive-max.zip"
+          if [ ! -f "$HOST_PATH" ]; then
+            echo "FAIL: max compress archive does not exist at $HOST_PATH"
+            exit 1
+          fi
+          if ! unzip -t "$HOST_PATH"; then
+            echo "FAIL: max compress archive is not a valid zip"
+            exit 1
+          fi
+          echo "PASS: max compress archive exists and is valid"

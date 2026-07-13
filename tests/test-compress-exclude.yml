@@ -1,0 +1,71 @@
+name: Test compress with exclude
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/exclude-source"
+          echo "Include this" > "$GITHUB_WORKSPACE/exclude-source/include.txt"
+          echo "Exclude this" > "$GITHUB_WORKSPACE/exclude-source/exclude.log"
+          echo "Also include" > "$GITHUB_WORKSPACE/exclude-source/also-include.txt"
+          mkdir -p "$GITHUB_WORKSPACE/exclude-output"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: exclude-source
+          dest: exclude-output
+          destfilename: archive
+          format: zip
+          exclude: "*.log"
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          ACTUAL: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "actual file_path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$ACTUAL"
+
+      - name: Assert archive file exists
+        run: |
+          HOST_PATH="$GITHUB_WORKSPACE/exclude-output/archive.zip"
+          echo "Checking file: $HOST_PATH"
+          if [ ! -f "$HOST_PATH" ]; then
+            echo "FAIL: archive file does not exist at $HOST_PATH"
+            ls -la "$GITHUB_WORKSPACE/exclude-output/" || true
+            exit 1
+          fi
+          echo "PASS: archive file exists"
+
+      - name: Assert included file is in archive
+        run: |
+          HOST_PATH="$GITHUB_WORKSPACE/exclude-output/archive.zip"
+          echo "Listing archive contents:"
+          unzip -l "$HOST_PATH"
+          if ! unzip -l "$HOST_PATH" | grep -q "include.txt"; then
+            echo "FAIL: include.txt not found in archive"
+            exit 1
+          fi
+          echo "PASS: include.txt found in archive"
+
+      - name: Assert excluded file is not in archive
+        run: |
+          HOST_PATH="$GITHUB_WORKSPACE/exclude-output/archive.zip"
+          echo "Checking excluded file is absent:"
+          unzip -l "$HOST_PATH"
+          if unzip -l "$HOST_PATH" | grep -q "exclude.log"; then
+            echo "FAIL: exclude.log should not be in archive but was found"
+            exit 1
+          fi
+          echo "PASS: exclude.log correctly excluded from archive"

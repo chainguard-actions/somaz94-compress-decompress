@@ -1,0 +1,72 @@
+name: Test compress zip
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/zip-source"
+          echo "Hello World" > "$GITHUB_WORKSPACE/zip-source/hello.txt"
+          echo "Another file" > "$GITHUB_WORKSPACE/zip-source/another.txt"
+          mkdir -p "$GITHUB_WORKSPACE/zip-output"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: zip-source
+          dest: zip-output
+          destfilename: archive
+          format: zip
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          ACTUAL: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "actual file_path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$ACTUAL"
+
+      - name: Assert checksum output is set
+        env:
+          ACTUAL: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "actual checksum: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          echo "PASS: checksum=$ACTUAL"
+
+      - name: Assert archive file exists
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "Checking file: $FILE_PATH"
+          # file_path may be an absolute path inside the container (/github/workspace/...)
+          # map it to the host workspace path
+          HOST_PATH="$GITHUB_WORKSPACE/zip-output/archive.zip"
+          if [ ! -f "$HOST_PATH" ]; then
+            echo "FAIL: archive file does not exist at $HOST_PATH"
+            ls -la "$GITHUB_WORKSPACE/zip-output/" || true
+            exit 1
+          fi
+          echo "PASS: archive file exists"
+
+      - name: Assert archive is a valid zip
+        run: |
+          HOST_PATH="$GITHUB_WORKSPACE/zip-output/archive.zip"
+          echo "Verifying zip integrity: $HOST_PATH"
+          if ! unzip -t "$HOST_PATH"; then
+            echo "FAIL: archive is not a valid zip file"
+            exit 1
+          fi
+          echo "PASS: valid zip archive"

@@ -1,0 +1,68 @@
+name: Test compress tar
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tar-source"
+          echo "Tar test file" > "$GITHUB_WORKSPACE/tar-source/test.txt"
+          echo "Another tar file" > "$GITHUB_WORKSPACE/tar-source/data.txt"
+          mkdir -p "$GITHUB_WORKSPACE/tar-output"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: tar-source
+          dest: tar-output
+          destfilename: archive
+          format: tar
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          ACTUAL: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "actual file_path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$ACTUAL"
+
+      - name: Assert archive file exists
+        run: |
+          HOST_PATH="$GITHUB_WORKSPACE/tar-output/archive.tar"
+          echo "Checking file: $HOST_PATH"
+          if [ ! -f "$HOST_PATH" ]; then
+            echo "FAIL: archive file does not exist at $HOST_PATH"
+            ls -la "$GITHUB_WORKSPACE/tar-output/" || true
+            exit 1
+          fi
+          echo "PASS: archive file exists"
+
+      - name: Assert archive is a valid tar
+        run: |
+          HOST_PATH="$GITHUB_WORKSPACE/tar-output/archive.tar"
+          echo "Verifying tar integrity: $HOST_PATH"
+          if ! tar -tf "$HOST_PATH" > /dev/null; then
+            echo "FAIL: archive is not a valid tar file"
+            exit 1
+          fi
+          echo "PASS: valid tar archive"
+
+      - name: Assert tar contains expected files
+        run: |
+          HOST_PATH="$GITHUB_WORKSPACE/tar-output/archive.tar"
+          echo "Listing tar contents:"
+          tar -tf "$HOST_PATH"
+          if ! tar -tf "$HOST_PATH" | grep -q "test.txt"; then
+            echo "FAIL: test.txt not found in tar archive"
+            exit 1
+          fi
+          echo "PASS: expected files found in tar archive"
