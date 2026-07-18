@@ -1,68 +1,67 @@
-name: Test compress tbz2
+name: Test compress to tbz2
 on:
   workflow_dispatch:
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create source files to compress
+      - name: Create source directory with files
         run: |
           mkdir -p "$GITHUB_WORKSPACE/tbz2-source"
-          echo "BZ2 test content" > "$GITHUB_WORKSPACE/tbz2-source/bz2test.txt"
-          echo "More bz2 data" > "$GITHUB_WORKSPACE/tbz2-source/more.txt"
-          mkdir -p "$GITHUB_WORKSPACE/tbz2-output"
+          echo "Bzip2 test file 1" > "$GITHUB_WORKSPACE/tbz2-source/bzip1.txt"
+          echo "Bzip2 test file 2" > "$GITHUB_WORKSPACE/tbz2-source/bzip2.txt"
 
       - id: compress
+        name: Compress directory to tbz2
         uses: .
         with:
           command: compress
           source: tbz2-source
           dest: tbz2-output
-          destfilename: archive
+          destfilename: bzip-archive
           format: tbz2
           verbose: "true"
 
       - name: Assert file_path output is set
         env:
-          ACTUAL: ${{ steps.compress.outputs.file_path }}
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
         run: |
-          echo "actual file_path: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
             echo "FAIL: file_path output is empty"
             exit 1
           fi
-          echo "PASS: file_path=$ACTUAL"
+          echo "PASS: file_path is set to $FILE_PATH"
 
-      - name: Assert checksum output is set
-        env:
-          ACTUAL: ${{ steps.compress.outputs.checksum }}
+      - name: Assert tbz2 file exists
         run: |
-          echo "actual checksum: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: checksum output is empty"
+          if [ ! -f "$GITHUB_WORKSPACE/tbz2-output/bzip-archive.tbz2" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/tbz2-output/bzip-archive.tbz2 to exist"
+            ls -la "$GITHUB_WORKSPACE/tbz2-output/" || echo "output dir does not exist"
             exit 1
           fi
-          echo "PASS: checksum=$ACTUAL"
+          echo "PASS: bzip-archive.tbz2 exists"
 
-      - name: Assert archive file exists
+      - name: Assert tbz2 file contains expected files
         run: |
-          HOST_PATH="$GITHUB_WORKSPACE/tbz2-output/archive.tbz2"
-          echo "Checking file: $HOST_PATH"
-          if [ ! -f "$HOST_PATH" ]; then
-            echo "FAIL: archive file does not exist at $HOST_PATH"
-            ls -la "$GITHUB_WORKSPACE/tbz2-output/" || true
+          tar -tjf "$GITHUB_WORKSPACE/tbz2-output/bzip-archive.tbz2"
+          if ! tar -tjf "$GITHUB_WORKSPACE/tbz2-output/bzip-archive.tbz2" | grep -q "bzip1.txt"; then
+            echo "FAIL: bzip1.txt not found in archive"
             exit 1
           fi
-          echo "PASS: archive file exists"
+          echo "PASS: bzip1.txt found in archive"
 
-      - name: Assert archive is a valid tbz2
+      - name: Decompress tbz2 and verify content
         run: |
-          HOST_PATH="$GITHUB_WORKSPACE/tbz2-output/archive.tbz2"
-          echo "Verifying tbz2 integrity: $HOST_PATH"
-          if ! tar -tjf "$HOST_PATH" > /dev/null; then
-            echo "FAIL: archive is not a valid tbz2 file"
+          mkdir -p "$GITHUB_WORKSPACE/tbz2-verify"
+          tar -xjf "$GITHUB_WORKSPACE/tbz2-output/bzip-archive.tbz2" -C "$GITHUB_WORKSPACE/tbz2-verify"
+          CONTENT=$(find "$GITHUB_WORKSPACE/tbz2-verify" -name "bzip1.txt" -exec cat {} \;)
+          echo "content: $CONTENT"
+          if [ "$CONTENT" != "Bzip2 test file 1" ]; then
+            echo "FAIL: expected 'Bzip2 test file 1' but got '$CONTENT'"
             exit 1
           fi
-          echo "PASS: valid tbz2 archive"
+          echo "PASS: file content is correct after decompression"

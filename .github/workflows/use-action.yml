@@ -1,0 +1,99 @@
+name: Smoke Test (Released Action)
+
+on:
+  workflow_dispatch:
+    inputs:
+      run:
+        description: 'workflow run'
+        required: true
+        default: 'true'
+  workflow_run:
+    workflows: ["Create release"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: Smoke Test (${{ matrix.format }}, root=${{ matrix.include_root }})
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    strategy:
+      matrix:
+        format: [zip, tar, tgz, tbz2, txz]
+        include_root: [true, false]
+      fail-fast: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Create Test Files
+        run: |
+          mkdir -p testdir/subdir
+          echo "Hello World" > testdir/file.txt
+          echo "Nested file" > testdir/subdir/nested.txt
+
+      - name: Compress
+        id: compress
+        uses: somaz94/compress-decompress@73a9d35033ed0408b96f09aa7e99d8fc8837f45d # v1
+        with:
+          command: 'compress'
+          source: './testdir'
+          format: ${{ matrix.format }}
+          includeRoot: ${{ matrix.include_root }}
+          verbose: 'true'
+
+      - name: Set Archive Path
+        id: archive
+        env:
+          MATRIX_INCLUDE_ROOT: ${{ matrix.include_root }}
+          MATRIX_FORMAT: ${{ matrix.format }}
+        run: |
+          safe_format=$(printf '%s' "$MATRIX_FORMAT" | tr -d '\n\r')
+          if [ "$MATRIX_INCLUDE_ROOT" = "true" ]; then
+            echo "path=./testdir.${safe_format}" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=./testdir/testdir.${safe_format}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify Archive Created
+        env:
+          ARCHIVE_PATH: ${{ steps.archive.outputs.path }}
+        run: |
+          if [ ! -f "$ARCHIVE_PATH" ]; then
+            echo "❌ Archive not found: $ARCHIVE_PATH"
+            exit 1
+          fi
+          echo "✅ Archive created: $ARCHIVE_PATH"
+
+      - name: Decompress
+        uses: somaz94/compress-decompress@73a9d35033ed0408b96f09aa7e99d8fc8837f45d # v1
+        with:
+          command: 'decompress'
+          source: ${{ steps.archive.outputs.path }}
+          format: ${{ matrix.format }}
+          dest: './extracted'
+
+      - name: Verify Extraction
+        env:
+          MATRIX_INCLUDE_ROOT: ${{ matrix.include_root }}
+        run: |
+          if [ "$MATRIX_INCLUDE_ROOT" = "true" ]; then
+            EXPECTED="./extracted/testdir/file.txt"
+          else
+            EXPECTED="./extracted/file.txt"
+          fi
+
+          if [ -f "$EXPECTED" ]; then
+            echo "✅ Decompression verified: $EXPECTED"
+          else
+            echo "❌ Expected file not found: $EXPECTED"
+            echo "Actual contents:"
+            find ./extracted -type f | sort
+            exit 1
+          fi

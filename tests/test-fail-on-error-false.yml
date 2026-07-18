@@ -1,0 +1,33 @@
+name: Test fail_on_error false with missing source
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: compress
+        name: Compress non-existent source with fail_on_error=false
+        uses: .
+        with:
+          command: compress
+          source: this-path-does-not-exist
+          dest: fail-test-output
+          destfilename: should-not-exist
+          format: zip
+          fail_on_error: "false"
+          verbose: "true"
+
+      - name: Assert action did not fail the workflow
+        run: |
+          echo "PASS: action completed without failing the workflow (fail_on_error=false)"
+
+      - name: Assert no output file was created
+        run: |
+          if [ -f "$GITHUB_WORKSPACE/fail-test-output/should-not-exist.zip" ]; then
+            echo "FAIL: archive should not have been created for non-existent source"
+            exit 1
+          fi
+          echo "PASS: no archive was created as expected"

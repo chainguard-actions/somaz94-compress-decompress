@@ -1,0 +1,84 @@
+name: Test round-trip compress and decompress zip
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source directory with files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/roundtrip-source"
+          echo "Round trip test content" > "$GITHUB_WORKSPACE/roundtrip-source/data.txt"
+          echo "Another round trip file" > "$GITHUB_WORKSPACE/roundtrip-source/data2.txt"
+          mkdir -p "$GITHUB_WORKSPACE/roundtrip-source/subdir"
+          echo "Nested content" > "$GITHUB_WORKSPACE/roundtrip-source/subdir/nested.txt"
+
+      - id: compress
+        name: Compress directory to zip
+        uses: .
+        with:
+          command: compress
+          source: roundtrip-source
+          dest: roundtrip-archives
+          destfilename: roundtrip
+          format: zip
+          verbose: "true"
+
+      - name: Assert compress succeeded
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: compress file_path output is empty"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/roundtrip-archives/roundtrip.zip" ]; then
+            echo "FAIL: roundtrip.zip does not exist"
+            exit 1
+          fi
+          echo "PASS: compression succeeded"
+
+      - id: decompress
+        name: Decompress the zip archive
+        uses: .
+        with:
+          command: decompress
+          source: roundtrip-archives/roundtrip.zip
+          dest: roundtrip-output
+          format: zip
+          verbose: "true"
+
+      - name: Assert decompress succeeded
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: decompress file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: decompression succeeded"
+
+      - name: Assert original files are restored correctly
+        run: |
+          # Find and verify data.txt content
+          CONTENT=$(find "$GITHUB_WORKSPACE/roundtrip-output" -name "data.txt" -exec cat {} \;)
+          echo "data.txt content: $CONTENT"
+          if [ "$CONTENT" != "Round trip test content" ]; then
+            echo "FAIL: data.txt content mismatch: '$CONTENT'"
+            exit 1
+          fi
+
+          # Find and verify nested.txt content
+          NESTED=$(find "$GITHUB_WORKSPACE/roundtrip-output" -name "nested.txt" -exec cat {} \;)
+          echo "nested.txt content: $NESTED"
+          if [ "$NESTED" != "Nested content" ]; then
+            echo "FAIL: nested.txt content mismatch: '$NESTED'"
+            exit 1
+          fi
+
+          echo "PASS: all files restored correctly after round-trip"

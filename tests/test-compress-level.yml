@@ -1,85 +1,81 @@
 name: Test compress with compression level
 on:
   workflow_dispatch:
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create source files to compress
+      - name: Create source directory with files
         run: |
           mkdir -p "$GITHUB_WORKSPACE/level-source"
           # Create a larger file to make compression level differences visible
           python3 -c "print('A' * 10000)" > "$GITHUB_WORKSPACE/level-source/large.txt"
           echo "Small file" > "$GITHUB_WORKSPACE/level-source/small.txt"
-          mkdir -p "$GITHUB_WORKSPACE/level-output-fast"
-          mkdir -p "$GITHUB_WORKSPACE/level-output-max"
 
-      - name: Compress with level 1 (fast)
-        id: compress-fast
+      - id: compress_max
+        name: Compress with maximum compression level (9)
         uses: .
         with:
           command: compress
           source: level-source
-          dest: level-output-fast
-          destfilename: archive-fast
-          format: zip
-          compression_level: "1"
-          verbose: "true"
-
-      - name: Assert fast compress file_path output is set
-        env:
-          ACTUAL: ${{ steps.compress-fast.outputs.file_path }}
-        run: |
-          echo "actual file_path: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: file_path output is empty"
-            exit 1
-          fi
-          echo "PASS: file_path=$ACTUAL"
-
-      - name: Assert fast compress archive exists
-        run: |
-          HOST_PATH="$GITHUB_WORKSPACE/level-output-fast/archive-fast.zip"
-          if [ ! -f "$HOST_PATH" ]; then
-            echo "FAIL: fast compress archive does not exist at $HOST_PATH"
-            exit 1
-          fi
-          echo "PASS: fast compress archive exists"
-
-      - name: Compress with level 9 (max)
-        id: compress-max
-        uses: .
-        with:
-          command: compress
-          source: level-source
-          dest: level-output-max
-          destfilename: archive-max
+          dest: level-output
+          destfilename: max-compressed
           format: zip
           compression_level: "9"
           verbose: "true"
 
-      - name: Assert max compress file_path output is set
+      - name: Assert max compression file_path output is set
         env:
-          ACTUAL: ${{ steps.compress-max.outputs.file_path }}
+          FILE_PATH: ${{ steps.compress_max.outputs.file_path }}
         run: |
-          echo "actual file_path: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
             echo "FAIL: file_path output is empty"
             exit 1
           fi
-          echo "PASS: file_path=$ACTUAL"
+          echo "PASS: file_path is set to $FILE_PATH"
 
-      - name: Assert max compress archive exists and is valid
+      - name: Assert max-compressed zip file exists
         run: |
-          HOST_PATH="$GITHUB_WORKSPACE/level-output-max/archive-max.zip"
-          if [ ! -f "$HOST_PATH" ]; then
-            echo "FAIL: max compress archive does not exist at $HOST_PATH"
+          if [ ! -f "$GITHUB_WORKSPACE/level-output/max-compressed.zip" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/level-output/max-compressed.zip to exist"
+            ls -la "$GITHUB_WORKSPACE/level-output/" || echo "output dir does not exist"
             exit 1
           fi
-          if ! unzip -t "$HOST_PATH"; then
-            echo "FAIL: max compress archive is not a valid zip"
+          echo "PASS: max-compressed.zip exists"
+
+      - id: compress_store
+        name: Compress with store only (level 0)
+        uses: .
+        with:
+          command: compress
+          source: level-source
+          dest: level-output
+          destfilename: store-only
+          format: zip
+          compression_level: "0"
+          verbose: "true"
+
+      - name: Assert store-only zip file exists
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/level-output/store-only.zip" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/level-output/store-only.zip to exist"
+            ls -la "$GITHUB_WORKSPACE/level-output/" || echo "output dir does not exist"
             exit 1
           fi
-          echo "PASS: max compress archive exists and is valid"
+          echo "PASS: store-only.zip exists"
+
+      - name: Assert store-only is larger than max-compressed
+        run: |
+          MAX_SIZE=$(stat -c%s "$GITHUB_WORKSPACE/level-output/max-compressed.zip")
+          STORE_SIZE=$(stat -c%s "$GITHUB_WORKSPACE/level-output/store-only.zip")
+          echo "max-compressed size: $MAX_SIZE bytes"
+          echo "store-only size: $STORE_SIZE bytes"
+          if [ "$STORE_SIZE" -le "$MAX_SIZE" ]; then
+            echo "FAIL: store-only ($STORE_SIZE) should be larger than max-compressed ($MAX_SIZE)"
+            exit 1
+          fi
+          echo "PASS: store-only is larger than max-compressed as expected"

@@ -1,0 +1,100 @@
+name: Create release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"  # v1.0.1, v1.0.2 등만 매칭
+
+permissions:
+  contents: write  # releases와 태그를 생성하기 위한 권한
+  pull-requests: write  # changelog 생성을 위한 권한
+
+jobs:
+  build:
+    name: "Release"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Check-out"
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN }}
+
+      - name: Get previous semver tag
+        id: prev_tag
+        env:
+          CURRENT_TAG: ${{ github.ref_name }}
+        run: |
+          PREVIOUS_TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | grep -B1 "^${CURRENT_TAG}$" | head -n1)
+          if [ "$PREVIOUS_TAG" = "$CURRENT_TAG" ]; then
+            PREVIOUS_TAG=""
+          fi
+          echo "tag=${PREVIOUS_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog with git-cliff
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          OUTPUT: RELEASE.md
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Append full changelog link
+        if: steps.prev_tag.outputs.tag != ''
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PREV_TAG: ${{ steps.prev_tag.outputs.tag }}
+          CURRENT_TAG: ${{ github.ref_name }}
+        run: |
+          echo "" >> RELEASE.md
+          safe_repo=$(printf '%s' "$GITHUB_REPOSITORY" | tr -d '\n\r')
+          safe_prev=$(printf '%s' "$PREV_TAG" | tr -d '\n\r')
+          safe_cur=$(printf '%s' "$CURRENT_TAG" | tr -d '\n\r')
+          echo "**Full Changelog**: https://github.com/${safe_repo}/compare/${safe_prev}...${safe_cur}" >> RELEASE.md
+
+      - name: "Create GitHub release"
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: RELEASE.md
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Update major version tag"
+        env:
+          CURRENT_TAG: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          git checkout main
+          git fetch --tags
+          MAJOR_VERSION="${CURRENT_TAG%%.*}"
+          COMMIT_SHA=$(git rev-parse "$GIT_SHA")
+          echo "Current commit SHA: $COMMIT_SHA"
+          echo "Updating $MAJOR_VERSION to point to $CURRENT_TAG at commit $COMMIT_SHA"
+          safe_major=$(printf '%s' "$MAJOR_VERSION" | tr -d '\n\r')
+          safe_sha=$(printf '%s' "$COMMIT_SHA" | tr -d '\n\r')
+          echo "MAJOR_VERSION=${safe_major}" >> "$GITHUB_ENV"
+          echo "COMMIT_SHA=${safe_sha}" >> "$GITHUB_ENV"
+
+      # Delete old major version tag
+      - name: Delete old major version tag
+        uses: somaz94/go-git-commit-action@0f2678979f1fd2c759f4e1121d6d278a3324b5c8 # v1
+        with:
+          user_email: 'action@github.com'
+          user_name: 'GitHub Action'
+          tag_name: ${{ env.MAJOR_VERSION }}
+          delete_tag: true
+          github_token: ${{ secrets.PAT_TOKEN }}
+
+      # Create new major version tag
+      - name: Create new major version tag
+        uses: somaz94/go-git-commit-action@0f2678979f1fd2c759f4e1121d6d278a3324b5c8 # v1
+        with:
+          user_email: 'action@github.com'
+          user_name: 'GitHub Action'
+          tag_name: ${{ env.MAJOR_VERSION }}
+          tag_reference: ${{ env.COMMIT_SHA }}
+          github_token: ${{ secrets.PAT_TOKEN }}

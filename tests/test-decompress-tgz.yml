@@ -1,57 +1,58 @@
 name: Test decompress tgz
 on:
   workflow_dispatch:
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create and compress source files as tgz
+      - name: Create a tgz archive to decompress
         run: |
           mkdir -p "$GITHUB_WORKSPACE/tgz-decomp-source"
-          echo "TGZ content" > "$GITHUB_WORKSPACE/tgz-decomp-source/content.txt"
-          echo "More data" > "$GITHUB_WORKSPACE/tgz-decomp-source/data.txt"
-          mkdir -p "$GITHUB_WORKSPACE/tgz-decomp-archive"
-          cd "$GITHUB_WORKSPACE" && tar -czf "$GITHUB_WORKSPACE/tgz-decomp-archive/test.tgz" tgz-decomp-source/
-          mkdir -p "$GITHUB_WORKSPACE/tgz-decomp-output"
+          echo "Hello from tgz" > "$GITHUB_WORKSPACE/tgz-decomp-source/hello.txt"
+          echo "Second file" > "$GITHUB_WORKSPACE/tgz-decomp-source/second.txt"
+          mkdir -p "$GITHUB_WORKSPACE/tgz-decomp-archives"
+          tar -czf "$GITHUB_WORKSPACE/tgz-decomp-archives/test.tgz" -C "$GITHUB_WORKSPACE" tgz-decomp-source/
 
       - id: decompress
+        name: Decompress tgz archive
         uses: .
         with:
           command: decompress
-          source: tgz-decomp-archive/test.tgz
+          source: tgz-decomp-archives/test.tgz
           dest: tgz-decomp-output
           format: tgz
           verbose: "true"
 
       - name: Assert file_path output is set
         env:
-          ACTUAL: ${{ steps.decompress.outputs.file_path }}
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
         run: |
-          echo "actual file_path: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
             echo "FAIL: file_path output is empty"
             exit 1
           fi
-          echo "PASS: file_path=$ACTUAL"
+          echo "PASS: file_path is set to $FILE_PATH"
 
       - name: Assert decompressed files exist
         run: |
-          echo "Listing $GITHUB_WORKSPACE/tgz-decomp-output:"
-          find "$GITHUB_WORKSPACE/tgz-decomp-output" -type f | sort
-          if ! find "$GITHUB_WORKSPACE/tgz-decomp-output" -name "content.txt" | grep -q .; then
-            echo "FAIL: content.txt not found in decompressed output"
+          ls -la "$GITHUB_WORKSPACE/tgz-decomp-output/" || echo "output dir listing failed"
+          if ! find "$GITHUB_WORKSPACE/tgz-decomp-output" -name "hello.txt" | grep -q "hello.txt"; then
+            echo "FAIL: hello.txt not found in decompressed output"
+            find "$GITHUB_WORKSPACE/tgz-decomp-output" -type f
             exit 1
           fi
-          echo "PASS: decompressed files found"
+          echo "PASS: hello.txt found in decompressed output"
 
-      - name: Assert file content is correct
+      - name: Assert decompressed file content is correct
         run: |
-          CONTENT=$(find "$GITHUB_WORKSPACE/tgz-decomp-output" -name "content.txt" -exec cat {} \;)
-          echo "Content: $CONTENT"
-          if [ "$CONTENT" != "TGZ content" ]; then
-            echo "FAIL: file content does not match expected"
+          CONTENT=$(find "$GITHUB_WORKSPACE/tgz-decomp-output" -name "hello.txt" -exec cat {} \;)
+          echo "content: $CONTENT"
+          if [ "$CONTENT" != "Hello from tgz" ]; then
+            echo "FAIL: expected 'Hello from tgz' but got '$CONTENT'"
             exit 1
           fi
-          echo "PASS: file content matches"
+          echo "PASS: file content is correct"

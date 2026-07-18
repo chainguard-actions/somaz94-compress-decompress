@@ -1,68 +1,73 @@
-name: Test compress tgz
+name: Test compress to tgz
 on:
   workflow_dispatch:
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create source files to compress
+      - name: Create source directory with files
         run: |
+          mkdir -p "$GITHUB_WORKSPACE/tgz-source"
+          echo "File one content" > "$GITHUB_WORKSPACE/tgz-source/file1.txt"
+          echo "File two content" > "$GITHUB_WORKSPACE/tgz-source/file2.txt"
           mkdir -p "$GITHUB_WORKSPACE/tgz-source/subdir"
-          echo "File one" > "$GITHUB_WORKSPACE/tgz-source/file1.txt"
-          echo "File two" > "$GITHUB_WORKSPACE/tgz-source/subdir/file2.txt"
-          mkdir -p "$GITHUB_WORKSPACE/tgz-output"
+          echo "Nested file" > "$GITHUB_WORKSPACE/tgz-source/subdir/nested.txt"
 
       - id: compress
+        name: Compress directory to tgz
         uses: .
         with:
           command: compress
           source: tgz-source
           dest: tgz-output
-          destfilename: archive
+          destfilename: myarchive
           format: tgz
           verbose: "true"
 
       - name: Assert file_path output is set
         env:
-          ACTUAL: ${{ steps.compress.outputs.file_path }}
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
         run: |
-          echo "actual file_path: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
             echo "FAIL: file_path output is empty"
             exit 1
           fi
-          echo "PASS: file_path=$ACTUAL"
+          echo "PASS: file_path is set to $FILE_PATH"
 
       - name: Assert checksum output is set
         env:
-          ACTUAL: ${{ steps.compress.outputs.checksum }}
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
         run: |
-          echo "actual checksum: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
             echo "FAIL: checksum output is empty"
             exit 1
           fi
-          echo "PASS: checksum=$ACTUAL"
-
-      - name: Assert archive file exists
-        run: |
-          HOST_PATH="$GITHUB_WORKSPACE/tgz-output/archive.tgz"
-          echo "Checking file: $HOST_PATH"
-          if [ ! -f "$HOST_PATH" ]; then
-            echo "FAIL: archive file does not exist at $HOST_PATH"
-            ls -la "$GITHUB_WORKSPACE/tgz-output/" || true
+          # SHA256 checksums are 64 hex characters
+          if [ ${#CHECKSUM} -ne 64 ]; then
+            echo "FAIL: checksum length is ${#CHECKSUM}, expected 64"
             exit 1
           fi
-          echo "PASS: archive file exists"
+          echo "PASS: checksum is valid SHA256"
 
-      - name: Assert archive is a valid tgz
+      - name: Assert tgz file exists
         run: |
-          HOST_PATH="$GITHUB_WORKSPACE/tgz-output/archive.tgz"
-          echo "Verifying tgz integrity: $HOST_PATH"
-          if ! tar -tzf "$HOST_PATH" > /dev/null; then
-            echo "FAIL: archive is not a valid tgz file"
+          if [ ! -f "$GITHUB_WORKSPACE/tgz-output/myarchive.tgz" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/tgz-output/myarchive.tgz to exist"
+            ls -la "$GITHUB_WORKSPACE/tgz-output/" || echo "output dir does not exist"
             exit 1
           fi
-          echo "PASS: valid tgz archive"
+          echo "PASS: myarchive.tgz exists"
+
+      - name: Assert tgz file contains expected files
+        run: |
+          tar -tzf "$GITHUB_WORKSPACE/tgz-output/myarchive.tgz"
+          if ! tar -tzf "$GITHUB_WORKSPACE/tgz-output/myarchive.tgz" | grep -q "file1.txt"; then
+            echo "FAIL: file1.txt not found in archive"
+            exit 1
+          fi
+          echo "PASS: file1.txt found in archive"

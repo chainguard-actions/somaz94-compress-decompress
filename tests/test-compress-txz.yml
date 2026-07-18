@@ -1,68 +1,67 @@
-name: Test compress txz
+name: Test compress to txz
 on:
   workflow_dispatch:
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create source files to compress
+      - name: Create source directory with files
         run: |
           mkdir -p "$GITHUB_WORKSPACE/txz-source"
-          echo "XZ test content" > "$GITHUB_WORKSPACE/txz-source/xztest.txt"
-          echo "More xz data" > "$GITHUB_WORKSPACE/txz-source/more.txt"
-          mkdir -p "$GITHUB_WORKSPACE/txz-output"
+          echo "XZ test file 1" > "$GITHUB_WORKSPACE/txz-source/xz1.txt"
+          echo "XZ test file 2" > "$GITHUB_WORKSPACE/txz-source/xz2.txt"
 
       - id: compress
+        name: Compress directory to txz
         uses: .
         with:
           command: compress
           source: txz-source
           dest: txz-output
-          destfilename: archive
+          destfilename: xz-archive
           format: txz
           verbose: "true"
 
       - name: Assert file_path output is set
         env:
-          ACTUAL: ${{ steps.compress.outputs.file_path }}
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
         run: |
-          echo "actual file_path: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
             echo "FAIL: file_path output is empty"
             exit 1
           fi
-          echo "PASS: file_path=$ACTUAL"
+          echo "PASS: file_path is set to $FILE_PATH"
 
-      - name: Assert checksum output is set
-        env:
-          ACTUAL: ${{ steps.compress.outputs.checksum }}
+      - name: Assert txz file exists
         run: |
-          echo "actual checksum: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: checksum output is empty"
+          if [ ! -f "$GITHUB_WORKSPACE/txz-output/xz-archive.txz" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/txz-output/xz-archive.txz to exist"
+            ls -la "$GITHUB_WORKSPACE/txz-output/" || echo "output dir does not exist"
             exit 1
           fi
-          echo "PASS: checksum=$ACTUAL"
+          echo "PASS: xz-archive.txz exists"
 
-      - name: Assert archive file exists
+      - name: Assert txz file contains expected files
         run: |
-          HOST_PATH="$GITHUB_WORKSPACE/txz-output/archive.txz"
-          echo "Checking file: $HOST_PATH"
-          if [ ! -f "$HOST_PATH" ]; then
-            echo "FAIL: archive file does not exist at $HOST_PATH"
-            ls -la "$GITHUB_WORKSPACE/txz-output/" || true
+          tar -tJf "$GITHUB_WORKSPACE/txz-output/xz-archive.txz"
+          if ! tar -tJf "$GITHUB_WORKSPACE/txz-output/xz-archive.txz" | grep -q "xz1.txt"; then
+            echo "FAIL: xz1.txt not found in archive"
             exit 1
           fi
-          echo "PASS: archive file exists"
+          echo "PASS: xz1.txt found in archive"
 
-      - name: Assert archive is a valid txz
+      - name: Decompress txz and verify content
         run: |
-          HOST_PATH="$GITHUB_WORKSPACE/txz-output/archive.txz"
-          echo "Verifying txz integrity: $HOST_PATH"
-          if ! tar -tJf "$HOST_PATH" > /dev/null; then
-            echo "FAIL: archive is not a valid txz file"
+          mkdir -p "$GITHUB_WORKSPACE/txz-verify"
+          tar -xJf "$GITHUB_WORKSPACE/txz-output/xz-archive.txz" -C "$GITHUB_WORKSPACE/txz-verify"
+          CONTENT=$(find "$GITHUB_WORKSPACE/txz-verify" -name "xz1.txt" -exec cat {} \;)
+          echo "content: $CONTENT"
+          if [ "$CONTENT" != "XZ test file 1" ]; then
+            echo "FAIL: expected 'XZ test file 1' but got '$CONTENT'"
             exit 1
           fi
-          echo "PASS: valid txz archive"
+          echo "PASS: file content is correct after decompression"

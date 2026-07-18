@@ -1,68 +1,70 @@
-name: Test compress tar
+name: Test compress to tar
 on:
   workflow_dispatch:
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create source files to compress
+      - name: Create source directory with files
         run: |
           mkdir -p "$GITHUB_WORKSPACE/tar-source"
-          echo "Tar test file" > "$GITHUB_WORKSPACE/tar-source/test.txt"
-          echo "Another tar file" > "$GITHUB_WORKSPACE/tar-source/data.txt"
-          mkdir -p "$GITHUB_WORKSPACE/tar-output"
+          echo "File A content" > "$GITHUB_WORKSPACE/tar-source/fileA.txt"
+          echo "File B content" > "$GITHUB_WORKSPACE/tar-source/fileB.txt"
 
       - id: compress
+        name: Compress directory to tar
         uses: .
         with:
           command: compress
           source: tar-source
           dest: tar-output
-          destfilename: archive
+          destfilename: tarball
           format: tar
           verbose: "true"
 
       - name: Assert file_path output is set
         env:
-          ACTUAL: ${{ steps.compress.outputs.file_path }}
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
         run: |
-          echo "actual file_path: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
             echo "FAIL: file_path output is empty"
             exit 1
           fi
-          echo "PASS: file_path=$ACTUAL"
+          echo "PASS: file_path is set to $FILE_PATH"
 
-      - name: Assert archive file exists
+      - name: Assert checksum output is set
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
         run: |
-          HOST_PATH="$GITHUB_WORKSPACE/tar-output/archive.tar"
-          echo "Checking file: $HOST_PATH"
-          if [ ! -f "$HOST_PATH" ]; then
-            echo "FAIL: archive file does not exist at $HOST_PATH"
-            ls -la "$GITHUB_WORKSPACE/tar-output/" || true
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
             exit 1
           fi
-          echo "PASS: archive file exists"
-
-      - name: Assert archive is a valid tar
-        run: |
-          HOST_PATH="$GITHUB_WORKSPACE/tar-output/archive.tar"
-          echo "Verifying tar integrity: $HOST_PATH"
-          if ! tar -tf "$HOST_PATH" > /dev/null; then
-            echo "FAIL: archive is not a valid tar file"
+          if [ ${#CHECKSUM} -ne 64 ]; then
+            echo "FAIL: checksum length is ${#CHECKSUM}, expected 64 hex chars"
             exit 1
           fi
-          echo "PASS: valid tar archive"
+          echo "PASS: checksum is valid SHA256"
 
-      - name: Assert tar contains expected files
+      - name: Assert tar file exists
         run: |
-          HOST_PATH="$GITHUB_WORKSPACE/tar-output/archive.tar"
-          echo "Listing tar contents:"
-          tar -tf "$HOST_PATH"
-          if ! tar -tf "$HOST_PATH" | grep -q "test.txt"; then
-            echo "FAIL: test.txt not found in tar archive"
+          if [ ! -f "$GITHUB_WORKSPACE/tar-output/tarball.tar" ]; then
+            echo "FAIL: expected $GITHUB_WORKSPACE/tar-output/tarball.tar to exist"
+            ls -la "$GITHUB_WORKSPACE/tar-output/" || echo "output dir does not exist"
             exit 1
           fi
-          echo "PASS: expected files found in tar archive"
+          echo "PASS: tarball.tar exists"
+
+      - name: Assert tar file contains expected files
+        run: |
+          tar -tf "$GITHUB_WORKSPACE/tar-output/tarball.tar"
+          if ! tar -tf "$GITHUB_WORKSPACE/tar-output/tarball.tar" | grep -q "fileA.txt"; then
+            echo "FAIL: fileA.txt not found in archive"
+            exit 1
+          fi
+          echo "PASS: fileA.txt found in archive"

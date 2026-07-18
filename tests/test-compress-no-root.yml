@@ -1,0 +1,64 @@
+name: Test compress without root directory
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source directory with files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/noroot-source"
+          echo "Content alpha" > "$GITHUB_WORKSPACE/noroot-source/alpha.txt"
+          echo "Content beta" > "$GITHUB_WORKSPACE/noroot-source/beta.txt"
+
+      - id: compress_with_root
+        name: Compress with includeRoot=true (default)
+        uses: .
+        with:
+          command: compress
+          source: noroot-source
+          dest: noroot-output
+          destfilename: with-root
+          format: zip
+          includeRoot: "true"
+          verbose: "true"
+
+      - name: Assert with-root archive has root directory prefix
+        run: |
+          unzip -l "$GITHUB_WORKSPACE/noroot-output/with-root.zip"
+          # With includeRoot=true, files should be under noroot-source/
+          if ! unzip -l "$GITHUB_WORKSPACE/noroot-output/with-root.zip" | grep -q "noroot-source"; then
+            echo "FAIL: expected 'noroot-source' directory prefix in archive"
+            exit 1
+          fi
+          echo "PASS: root directory is included in archive"
+
+      - id: compress_no_root
+        name: Compress with includeRoot=false
+        uses: .
+        with:
+          command: compress
+          source: noroot-source
+          dest: noroot-output
+          destfilename: without-root
+          format: zip
+          includeRoot: "false"
+          verbose: "true"
+
+      - name: Assert without-root archive has no root directory prefix
+        run: |
+          unzip -l "$GITHUB_WORKSPACE/noroot-output/without-root.zip"
+          # With includeRoot=false, files should be at root level (no noroot-source/ prefix)
+          if unzip -l "$GITHUB_WORKSPACE/noroot-output/without-root.zip" | grep -q "noroot-source/"; then
+            echo "FAIL: 'noroot-source/' directory prefix should not be in archive"
+            exit 1
+          fi
+          # But the files themselves should still be there
+          if ! unzip -l "$GITHUB_WORKSPACE/noroot-output/without-root.zip" | grep -q "alpha.txt"; then
+            echo "FAIL: alpha.txt not found in archive"
+            exit 1
+          fi
+          echo "PASS: root directory is excluded from archive, files are at root level"
