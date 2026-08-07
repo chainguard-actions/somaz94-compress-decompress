@@ -1,0 +1,71 @@
+name: Test compress tgz format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tgz-source"
+          echo "File one content" > "$GITHUB_WORKSPACE/tgz-source/file1.txt"
+          echo "File two content" > "$GITHUB_WORKSPACE/tgz-source/file2.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./tgz-source
+          dest: ./tgz-output
+          destfilename: archive
+          format: tgz
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is '$FILE_PATH'"
+
+      - name: Assert checksum output is set
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          # Validate it looks like a SHA256 (64 hex chars)
+          if ! echo "$CHECKSUM" | grep -qE '^[0-9a-f]{64}$'; then
+            echo "FAIL: checksum does not look like SHA256: '$CHECKSUM'"
+            exit 1
+          fi
+          echo "PASS: checksum is valid SHA256"
+
+      - name: Assert archive file exists
+        run: |
+          echo "Checking for archive in output dir:"
+          ls -la "$GITHUB_WORKSPACE/tgz-output/" || true
+          if [ ! -f "$GITHUB_WORKSPACE/tgz-output/archive.tgz" ]; then
+            echo "FAIL: archive file not found at tgz-output/archive.tgz"
+            exit 1
+          fi
+          echo "PASS: archive file exists"
+
+      - name: Assert archive is valid tgz
+        run: |
+          echo "Listing tgz contents:"
+          tar -tzf "$GITHUB_WORKSPACE/tgz-output/archive.tgz"
+          if ! tar -tzf "$GITHUB_WORKSPACE/tgz-output/archive.tgz" | grep -q "file1.txt"; then
+            echo "FAIL: file1.txt not found in tgz archive"
+            exit 1
+          fi
+          echo "PASS: tgz archive is valid and contains expected files"

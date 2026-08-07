@@ -1,0 +1,65 @@
+name: Test compress with exclude option
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/excl-source"
+          echo "Include this file" > "$GITHUB_WORKSPACE/excl-source/include.txt"
+          echo "Exclude this file" > "$GITHUB_WORKSPACE/excl-source/exclude.log"
+          echo "Also include this" > "$GITHUB_WORKSPACE/excl-source/also-include.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./excl-source
+          dest: ./excl-output
+          destfilename: archive
+          format: tgz
+          exclude: "*.log"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is '$FILE_PATH'"
+
+      - name: Assert archive file exists
+        run: |
+          ls -la "$GITHUB_WORKSPACE/excl-output/" || true
+          if [ ! -f "$GITHUB_WORKSPACE/excl-output/archive.tgz" ]; then
+            echo "FAIL: archive file not found at excl-output/archive.tgz"
+            exit 1
+          fi
+          echo "PASS: archive file exists"
+
+      - name: Assert included files are in archive
+        run: |
+          echo "Listing archive contents:"
+          tar -tzf "$GITHUB_WORKSPACE/excl-output/archive.tgz"
+          if ! tar -tzf "$GITHUB_WORKSPACE/excl-output/archive.tgz" | grep -q "include.txt"; then
+            echo "FAIL: include.txt not found in archive"
+            exit 1
+          fi
+          echo "PASS: include.txt is present in archive"
+
+      - name: Assert excluded files are not in archive
+        run: |
+          echo "Checking excluded files:"
+          tar -tzf "$GITHUB_WORKSPACE/excl-output/archive.tgz"
+          if tar -tzf "$GITHUB_WORKSPACE/excl-output/archive.tgz" | grep -q "exclude.log"; then
+            echo "FAIL: exclude.log should not be in archive but was found"
+            exit 1
+          fi
+          echo "PASS: exclude.log is correctly excluded from archive"

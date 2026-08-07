@@ -1,0 +1,31 @@
+name: Create release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  # Seeds the container image for a version whose tag does not exist yet.
+  # action.yml resolves `docker://ghcr.io/...:<version>` at the moment a
+  # consumer runs the action, and it reads that from the tag being released —
+  # so on the FIRST docker:// release the image has to already be in the
+  # registry before the tag is pushed, or the tag is briefly broken.
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Publish only the container image for this version (e.g. v1.2.0). No GitHub release is created."
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    uses: somaz94/.github/.github/workflows/release-reusable.yml@f985f57e4970eba23bdc913f91933813d7cab8fa # main
+    permissions:
+      contents: write
+      pull-requests: write
+      packages: write
+    with:
+      image_tag: ${{ inputs.image_tag || '' }}
+    secrets: inherit

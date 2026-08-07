@@ -1,0 +1,54 @@
+name: Test compress tar format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tar-source"
+          echo "Content of doc1" > "$GITHUB_WORKSPACE/tar-source/doc1.txt"
+          echo "Content of doc2" > "$GITHUB_WORKSPACE/tar-source/doc2.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./tar-source
+          dest: ./tar-output
+          destfilename: archive
+          format: tar
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is '$FILE_PATH'"
+
+      - name: Assert archive file exists
+        run: |
+          echo "Checking for archive in output dir:"
+          ls -la "$GITHUB_WORKSPACE/tar-output/" || true
+          if [ ! -f "$GITHUB_WORKSPACE/tar-output/archive.tar" ]; then
+            echo "FAIL: archive file not found at tar-output/archive.tar"
+            exit 1
+          fi
+          echo "PASS: archive file exists"
+
+      - name: Assert archive is valid tar
+        run: |
+          echo "Listing tar contents:"
+          tar -tf "$GITHUB_WORKSPACE/tar-output/archive.tar"
+          if ! tar -tf "$GITHUB_WORKSPACE/tar-output/archive.tar" | grep -q "doc1.txt"; then
+            echo "FAIL: doc1.txt not found in tar archive"
+            exit 1
+          fi
+          echo "PASS: tar archive is valid and contains expected files"

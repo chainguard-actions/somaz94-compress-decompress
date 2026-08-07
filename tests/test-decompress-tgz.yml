@@ -1,0 +1,65 @@
+name: Test decompress tgz format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files and compress with system tar
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tgz-decomp-source"
+          echo "Content of alpha" > "$GITHUB_WORKSPACE/tgz-decomp-source/alpha.txt"
+          echo "Content of beta" > "$GITHUB_WORKSPACE/tgz-decomp-source/beta.txt"
+          mkdir -p "$GITHUB_WORKSPACE/tgz-decomp-archive"
+          tar -czf "$GITHUB_WORKSPACE/tgz-decomp-archive/test.tgz" \
+            -C "$GITHUB_WORKSPACE/tgz-decomp-source" .
+          echo "Created archive:"
+          ls -la "$GITHUB_WORKSPACE/tgz-decomp-archive/"
+          tar -tzf "$GITHUB_WORKSPACE/tgz-decomp-archive/test.tgz"
+          mkdir -p "$GITHUB_WORKSPACE/tgz-decomp-output"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ./tgz-decomp-archive/test.tgz
+          dest: ./tgz-decomp-output
+          format: tgz
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is '$FILE_PATH'"
+
+      - name: Assert decompressed files exist
+        run: |
+          echo "Contents of output directory:"
+          find "$GITHUB_WORKSPACE/tgz-decomp-output" -type f | sort
+          if ! find "$GITHUB_WORKSPACE/tgz-decomp-output" -name "alpha.txt" | grep -q .; then
+            echo "FAIL: alpha.txt not found in decompressed output"
+            exit 1
+          fi
+          if ! find "$GITHUB_WORKSPACE/tgz-decomp-output" -name "beta.txt" | grep -q .; then
+            echo "FAIL: beta.txt not found in decompressed output"
+            exit 1
+          fi
+          echo "PASS: all expected files found after decompression"
+
+      - name: Assert file content is correct
+        run: |
+          CONTENT=$(find "$GITHUB_WORKSPACE/tgz-decomp-output" -name "alpha.txt" -exec cat {} \;)
+          echo "Content: $CONTENT"
+          if [ "$CONTENT" != "Content of alpha" ]; then
+            echo "FAIL: file content mismatch, got: '$CONTENT'"
+            exit 1
+          fi
+          echo "PASS: file content matches"

@@ -1,0 +1,14 @@
+name: Close Stale Issues
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    uses: somaz94/.github/.github/workflows/stale-issues-reusable.yml@f985f57e4970eba23bdc913f91933813d7cab8fa # main

@@ -1,0 +1,63 @@
+name: Test compress txz format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/txz-source"
+          echo "XZ compressed content" > "$GITHUB_WORKSPACE/txz-source/data.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./txz-source
+          dest: ./txz-output
+          destfilename: archive
+          format: txz
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is '$FILE_PATH'"
+
+      - name: Assert checksum output is set
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          echo "PASS: checksum is set"
+
+      - name: Assert archive file exists
+        run: |
+          ls -la "$GITHUB_WORKSPACE/txz-output/" || true
+          if [ ! -f "$GITHUB_WORKSPACE/txz-output/archive.txz" ]; then
+            echo "FAIL: archive file not found at txz-output/archive.txz"
+            exit 1
+          fi
+          echo "PASS: archive file exists"
+
+      - name: Assert archive is valid xz tar
+        run: |
+          echo "Listing txz contents:"
+          tar -tJf "$GITHUB_WORKSPACE/txz-output/archive.txz"
+          if ! tar -tJf "$GITHUB_WORKSPACE/txz-output/archive.txz" | grep -q "data.txt"; then
+            echo "FAIL: data.txt not found in txz archive"
+            exit 1
+          fi
+          echo "PASS: txz archive is valid and contains expected files"

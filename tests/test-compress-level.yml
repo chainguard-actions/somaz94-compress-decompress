@@ -1,0 +1,78 @@
+name: Test compress with compression level
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/level-source"
+          # Create a larger file to make compression level differences visible
+          python3 -c "print('A' * 10000)" > "$GITHUB_WORKSPACE/level-source/large.txt"
+
+      - id: compress-low
+        uses: .
+        with:
+          command: compress
+          source: ./level-source
+          dest: ./level-output-low
+          destfilename: archive-low
+          format: zip
+          compression_level: "1"
+
+      - id: compress-high
+        uses: .
+        with:
+          command: compress
+          source: ./level-source
+          dest: ./level-output-high
+          destfilename: archive-high
+          format: zip
+          compression_level: "9"
+
+      - name: Assert both archives exist
+        env:
+          FILE_PATH_LOW: ${{ steps.compress-low.outputs.file_path }}
+          FILE_PATH_HIGH: ${{ steps.compress-high.outputs.file_path }}
+        run: |
+          echo "Low compression file_path: $FILE_PATH_LOW"
+          echo "High compression file_path: $FILE_PATH_HIGH"
+          if [ -z "$FILE_PATH_LOW" ]; then
+            echo "FAIL: low compression file_path output is empty"
+            exit 1
+          fi
+          if [ -z "$FILE_PATH_HIGH" ]; then
+            echo "FAIL: high compression file_path output is empty"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/level-output-low/archive-low.zip" ]; then
+            echo "FAIL: low compression archive not found"
+            ls -la "$GITHUB_WORKSPACE/level-output-low/" || true
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/level-output-high/archive-high.zip" ]; then
+            echo "FAIL: high compression archive not found"
+            ls -la "$GITHUB_WORKSPACE/level-output-high/" || true
+            exit 1
+          fi
+          echo "PASS: both archives exist"
+
+      - name: Assert both checksums are set
+        env:
+          CHECKSUM_LOW: ${{ steps.compress-low.outputs.checksum }}
+          CHECKSUM_HIGH: ${{ steps.compress-high.outputs.checksum }}
+        run: |
+          echo "Low checksum: $CHECKSUM_LOW"
+          echo "High checksum: $CHECKSUM_HIGH"
+          if [ -z "$CHECKSUM_LOW" ]; then
+            echo "FAIL: low compression checksum is empty"
+            exit 1
+          fi
+          if [ -z "$CHECKSUM_HIGH" ]; then
+            echo "FAIL: high compression checksum is empty"
+            exit 1
+          fi
+          echo "PASS: both checksums are set"

@@ -1,0 +1,12 @@
+name: Auto Assign
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  assign:
+    uses: somaz94/.github/.github/workflows/auto-assign-reusable.yml@f985f57e4970eba23bdc913f91933813d7cab8fa # main

@@ -1,0 +1,62 @@
+name: Test decompress zip format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files and compress with system zip
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/decomp-source"
+          echo "Hello from file A" > "$GITHUB_WORKSPACE/decomp-source/fileA.txt"
+          echo "Hello from file B" > "$GITHUB_WORKSPACE/decomp-source/fileB.txt"
+          mkdir -p "$GITHUB_WORKSPACE/decomp-archive"
+          cd "$GITHUB_WORKSPACE/decomp-source"
+          zip -r "$GITHUB_WORKSPACE/decomp-archive/test.zip" .
+          echo "Created archive:"
+          ls -la "$GITHUB_WORKSPACE/decomp-archive/"
+          unzip -l "$GITHUB_WORKSPACE/decomp-archive/test.zip"
+          mkdir -p "$GITHUB_WORKSPACE/decomp-output"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ./decomp-archive/test.zip
+          dest: ./decomp-output
+          format: zip
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is '$FILE_PATH'"
+
+      - name: Assert decompressed files exist
+        run: |
+          echo "Contents of output directory:"
+          ls -la "$GITHUB_WORKSPACE/decomp-output/" || true
+          find "$GITHUB_WORKSPACE/decomp-output" -type f | sort
+          if ! find "$GITHUB_WORKSPACE/decomp-output" -name "fileA.txt" | grep -q .; then
+            echo "FAIL: fileA.txt not found in decompressed output"
+            exit 1
+          fi
+          echo "PASS: decompressed files found"
+
+      - name: Assert file content is correct
+        run: |
+          CONTENT=$(find "$GITHUB_WORKSPACE/decomp-output" -name "fileA.txt" -exec cat {} \;)
+          echo "Content: $CONTENT"
+          if [ "$CONTENT" != "Hello from file A" ]; then
+            echo "FAIL: file content mismatch, got: '$CONTENT'"
+            exit 1
+          fi
+          echo "PASS: file content matches"

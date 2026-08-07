@@ -1,0 +1,63 @@
+name: Test compress tbz2 format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tbz2-source"
+          echo "Bzip2 compressed content" > "$GITHUB_WORKSPACE/tbz2-source/data.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./tbz2-source
+          dest: ./tbz2-output
+          destfilename: archive
+          format: tbz2
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is '$FILE_PATH'"
+
+      - name: Assert checksum output is set
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          echo "PASS: checksum is set"
+
+      - name: Assert archive file exists
+        run: |
+          ls -la "$GITHUB_WORKSPACE/tbz2-output/" || true
+          if [ ! -f "$GITHUB_WORKSPACE/tbz2-output/archive.tbz2" ]; then
+            echo "FAIL: archive file not found at tbz2-output/archive.tbz2"
+            exit 1
+          fi
+          echo "PASS: archive file exists"
+
+      - name: Assert archive is valid bzip2 tar
+        run: |
+          echo "Listing tbz2 contents:"
+          tar -tjf "$GITHUB_WORKSPACE/tbz2-output/archive.tbz2"
+          if ! tar -tjf "$GITHUB_WORKSPACE/tbz2-output/archive.tbz2" | grep -q "data.txt"; then
+            echo "FAIL: data.txt not found in tbz2 archive"
+            exit 1
+          fi
+          echo "PASS: tbz2 archive is valid and contains expected files"

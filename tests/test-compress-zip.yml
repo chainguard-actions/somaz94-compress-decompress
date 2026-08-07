@@ -1,0 +1,65 @@
+name: Test compress zip format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/zip-source"
+          echo "Hello World" > "$GITHUB_WORKSPACE/zip-source/hello.txt"
+          echo "Another file" > "$GITHUB_WORKSPACE/zip-source/another.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./zip-source
+          dest: ./zip-output
+          destfilename: archive
+          format: zip
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is '$FILE_PATH'"
+
+      - name: Assert checksum output is set
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          echo "PASS: checksum is '$CHECKSUM'"
+
+      - name: Assert archive file exists
+        run: |
+          echo "Checking for archive in output dir:"
+          ls -la "$GITHUB_WORKSPACE/zip-output/" || true
+          if [ ! -f "$GITHUB_WORKSPACE/zip-output/archive.zip" ]; then
+            echo "FAIL: archive file not found at zip-output/archive.zip"
+            exit 1
+          fi
+          echo "PASS: archive file exists"
+
+      - name: Assert archive contains expected files
+        run: |
+          echo "Listing archive contents:"
+          unzip -l "$GITHUB_WORKSPACE/zip-output/archive.zip"
+          if ! unzip -l "$GITHUB_WORKSPACE/zip-output/archive.zip" | grep -q "hello.txt"; then
+            echo "FAIL: hello.txt not found in archive"
+            exit 1
+          fi
+          echo "PASS: archive contains expected files"

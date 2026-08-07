@@ -1,0 +1,59 @@
+name: Test compress without root folder (includeRoot false)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/noroot-source"
+          echo "File content" > "$GITHUB_WORKSPACE/noroot-source/myfile.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./noroot-source
+          dest: ./noroot-output
+          destfilename: archive
+          format: zip
+          includeRoot: "false"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is '$FILE_PATH'"
+
+      - name: Assert archive file exists
+        run: |
+          ls -la "$GITHUB_WORKSPACE/noroot-output/" || true
+          if [ ! -f "$GITHUB_WORKSPACE/noroot-output/archive.zip" ]; then
+            echo "FAIL: archive file not found at noroot-output/archive.zip"
+            exit 1
+          fi
+          echo "PASS: archive file exists"
+
+      - name: Assert archive contains files without root directory prefix
+        run: |
+          echo "Listing archive contents:"
+          unzip -l "$GITHUB_WORKSPACE/noroot-output/archive.zip"
+          # When includeRoot=false, files should be at root level (myfile.txt)
+          # not under a directory (noroot-source/myfile.txt)
+          if unzip -l "$GITHUB_WORKSPACE/noroot-output/archive.zip" | grep -q "noroot-source/myfile.txt"; then
+            echo "FAIL: root directory 'noroot-source' should not be included in archive"
+            exit 1
+          fi
+          if ! unzip -l "$GITHUB_WORKSPACE/noroot-output/archive.zip" | grep -q "myfile.txt"; then
+            echo "FAIL: myfile.txt not found in archive at all"
+            exit 1
+          fi
+          echo "PASS: archive does not include root directory"
