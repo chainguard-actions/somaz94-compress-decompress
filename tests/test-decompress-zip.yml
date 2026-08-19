@@ -1,4 +1,4 @@
-name: Test decompress zip
+name: Test decompress zip format
 on:
   workflow_dispatch:
 jobs:
@@ -7,35 +7,51 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create and compress a zip file for testing
+      - name: Create a zip archive to decompress
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/decomp-source"
-          echo "hello from zip" > "$GITHUB_WORKSPACE/decomp-source/hello.txt"
-          echo "another file" > "$GITHUB_WORKSPACE/decomp-source/world.txt"
-          mkdir -p "$GITHUB_WORKSPACE/decomp-archive"
-          cd "$GITHUB_WORKSPACE" && zip -r "$GITHUB_WORKSPACE/decomp-archive/test.zip" decomp-source/
-          mkdir -p "$GITHUB_WORKSPACE/decomp-output"
+          mkdir -p "$GITHUB_WORKSPACE/zip-src"
+          echo "hello decompress" > "$GITHUB_WORKSPACE/zip-src/hello.txt"
+          echo "another file" > "$GITHUB_WORKSPACE/zip-src/world.txt"
+          mkdir -p "$GITHUB_WORKSPACE/zip-input"
+          cd "$GITHUB_WORKSPACE/zip-src" && zip -r "$GITHUB_WORKSPACE/zip-input/test.zip" .
+          echo "Created zip:"
+          ls -la "$GITHUB_WORKSPACE/zip-input/"
 
       - id: decompress
         uses: .
         with:
           command: decompress
-          source: decomp-archive/test.zip
-          dest: decomp-output
+          source: zip-input/test.zip
+          dest: zip-output
           format: zip
+          verbose: "true"
+
+      - name: Log file_path output
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
 
       - name: Assert decompressed files exist
         run: |
-          echo "Listing $GITHUB_WORKSPACE/decomp-output:"
-          find "$GITHUB_WORKSPACE/decomp-output" -type f || echo "No files found"
-          if [ ! -d "$GITHUB_WORKSPACE/decomp-output" ]; then
-            echo "FAIL: expected $GITHUB_WORKSPACE/decomp-output directory to exist"
+          echo "Listing zip-output:"
+          find "$GITHUB_WORKSPACE/zip-output" -type f || true
+          if ! find "$GITHUB_WORKSPACE/zip-output" -name "hello.txt" | grep -q "hello.txt"; then
+            echo "FAIL: hello.txt not found in zip-output"
             exit 1
           fi
-          FILE_COUNT=$(find "$GITHUB_WORKSPACE/decomp-output" -type f | wc -l)
-          echo "Found $FILE_COUNT file(s)"
-          if [ "$FILE_COUNT" -lt 1 ]; then
-            echo "FAIL: expected at least 1 file to be decompressed"
+          if ! find "$GITHUB_WORKSPACE/zip-output" -name "world.txt" | grep -q "world.txt"; then
+            echo "FAIL: world.txt not found in zip-output"
             exit 1
           fi
-          echo "PASS: files were decompressed successfully"
+          echo "PASS: decompressed files exist"
+
+      - name: Assert file content is correct
+        run: |
+          CONTENT=$(find "$GITHUB_WORKSPACE/zip-output" -name "hello.txt" -exec cat {} \;)
+          echo "content: $CONTENT"
+          if [ "$CONTENT" != "hello decompress" ]; then
+            echo "FAIL: expected 'hello decompress' but got '$CONTENT'"
+            exit 1
+          fi
+          echo "PASS: file content is correct"

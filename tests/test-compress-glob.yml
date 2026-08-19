@@ -7,40 +7,51 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create source files matching a glob pattern
+      - name: Create source files with glob-matchable pattern
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/test-glob-source/docs"
-          echo "doc one" > "$GITHUB_WORKSPACE/test-glob-source/docs/doc1.txt"
-          echo "doc two" > "$GITHUB_WORKSPACE/test-glob-source/docs/doc2.txt"
-          echo "not a doc" > "$GITHUB_WORKSPACE/test-glob-source/docs/other.log"
-          mkdir -p "$GITHUB_WORKSPACE/test-glob-output"
+          mkdir -p "$GITHUB_WORKSPACE/glob-src/docs"
+          mkdir -p "$GITHUB_WORKSPACE/glob-src/notes"
+          echo "document one" > "$GITHUB_WORKSPACE/glob-src/docs/doc1.txt"
+          echo "document two" > "$GITHUB_WORKSPACE/glob-src/docs/doc2.txt"
+          echo "note one" > "$GITHUB_WORKSPACE/glob-src/notes/note1.txt"
+          echo "not a txt" > "$GITHUB_WORKSPACE/glob-src/readme.md"
 
       - id: compress
         uses: .
         with:
           command: compress
-          source: test-glob-source/docs/*.txt
-          dest: test-glob-output
-          destfilename: docs-archive
+          source: "glob-src/**/*.txt"
+          dest: glob-output
+          destfilename: glob-archive
           format: zip
+          preserveGlobStructure: "true"
+          verbose: "true"
 
-      - name: Assert zip file was created from glob pattern
+      - name: Log file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
         run: |
-          echo "Checking for zip file at $GITHUB_WORKSPACE/test-glob-output/docs-archive.zip"
-          if [ ! -f "$GITHUB_WORKSPACE/test-glob-output/docs-archive.zip" ]; then
-            echo "FAIL: expected $GITHUB_WORKSPACE/test-glob-output/docs-archive.zip to exist"
-            ls -la "$GITHUB_WORKSPACE/test-glob-output/" || echo "output dir does not exist"
+          echo "file_path: $FILE_PATH"
+
+      - name: Assert glob archive exists
+        run: |
+          echo "Listing glob-output:"
+          ls -la "$GITHUB_WORKSPACE/glob-output/" || true
+          if [ ! -f "$GITHUB_WORKSPACE/glob-output/glob-archive.zip" ]; then
+            echo "FAIL: expected glob-archive.zip not found in glob-output"
             exit 1
           fi
-          echo "PASS: zip file from glob pattern exists"
+          echo "PASS: glob-archive.zip exists"
 
-      - name: Assert zip file is valid and contains txt files
+      - name: Assert glob archive contains txt files but not md
         run: |
-          CONTENTS=$(unzip -l "$GITHUB_WORKSPACE/test-glob-output/docs-archive.zip")
-          echo "Archive contents:"
-          echo "$CONTENTS"
-          if ! echo "$CONTENTS" | grep -q "\.txt"; then
-            echo "FAIL: expected .txt files in the archive"
+          unzip -l "$GITHUB_WORKSPACE/glob-output/glob-archive.zip"
+          if ! unzip -l "$GITHUB_WORKSPACE/glob-output/glob-archive.zip" | grep -q "doc1.txt"; then
+            echo "FAIL: doc1.txt not found in archive"
             exit 1
           fi
-          echo "PASS: zip file contains txt files from glob pattern"
+          if ! unzip -l "$GITHUB_WORKSPACE/glob-output/glob-archive.zip" | grep -q "note1.txt"; then
+            echo "FAIL: note1.txt not found in archive"
+            exit 1
+          fi
+          echo "PASS: glob archive contains expected txt files"

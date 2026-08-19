@@ -1,4 +1,4 @@
-name: Test compress tgz
+name: Test compress tgz format
 on:
   workflow_dispatch:
 jobs:
@@ -7,38 +7,48 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create source directory with files
+      - name: Create source files to compress
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/test-tgz-source/subdir"
-          echo "file one content" > "$GITHUB_WORKSPACE/test-tgz-source/file1.txt"
-          echo "file two content" > "$GITHUB_WORKSPACE/test-tgz-source/file2.txt"
-          echo "nested file" > "$GITHUB_WORKSPACE/test-tgz-source/subdir/nested.txt"
-          mkdir -p "$GITHUB_WORKSPACE/test-tgz-output"
+          mkdir -p "$GITHUB_WORKSPACE/tgz-src/subdir"
+          echo "main file" > "$GITHUB_WORKSPACE/tgz-src/main.txt"
+          echo "sub file" > "$GITHUB_WORKSPACE/tgz-src/subdir/sub.txt"
 
       - id: compress
         uses: .
         with:
           command: compress
-          source: test-tgz-source
-          dest: test-tgz-output
+          source: tgz-src
+          dest: tgz-output
           destfilename: archive
           format: tgz
+          includeRoot: "false"
+          verbose: "true"
 
-      - name: Assert tgz file was created
+      - name: Log file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
         run: |
-          echo "Checking for tgz file at $GITHUB_WORKSPACE/test-tgz-output/archive.tgz"
-          if [ ! -f "$GITHUB_WORKSPACE/test-tgz-output/archive.tgz" ]; then
-            echo "FAIL: expected $GITHUB_WORKSPACE/test-tgz-output/archive.tgz to exist"
-            ls -la "$GITHUB_WORKSPACE/test-tgz-output/" || echo "output dir does not exist"
+          echo "file_path: $FILE_PATH"
+
+      - name: Assert tgz file exists
+        run: |
+          echo "Listing tgz-output:"
+          ls -la "$GITHUB_WORKSPACE/tgz-output/" || true
+          if [ ! -f "$GITHUB_WORKSPACE/tgz-output/archive.tgz" ]; then
+            echo "FAIL: expected archive.tgz not found in tgz-output"
             exit 1
           fi
-          echo "PASS: tgz file exists"
+          echo "PASS: archive.tgz exists"
 
       - name: Assert tgz file is valid and contains expected files
         run: |
-          tar -tzf "$GITHUB_WORKSPACE/test-tgz-output/archive.tgz"
-          if [ $? -ne 0 ]; then
-            echo "FAIL: tgz file is not valid"
+          tar -tzf "$GITHUB_WORKSPACE/tgz-output/archive.tgz"
+          if ! tar -tzf "$GITHUB_WORKSPACE/tgz-output/archive.tgz" | grep -q "main.txt"; then
+            echo "FAIL: main.txt not found in archive"
             exit 1
           fi
-          echo "PASS: tgz file is valid"
+          if ! tar -tzf "$GITHUB_WORKSPACE/tgz-output/archive.tgz" | grep -q "sub.txt"; then
+            echo "FAIL: sub.txt not found in archive"
+            exit 1
+          fi
+          echo "PASS: tgz archive contains expected files"

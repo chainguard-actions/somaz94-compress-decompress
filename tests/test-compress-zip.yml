@@ -1,4 +1,4 @@
-name: Test compress zip
+name: Test compress zip format
 on:
   workflow_dispatch:
 jobs:
@@ -7,37 +7,48 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create source directory with files
+      - name: Create source files to compress
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/test-source"
-          echo "hello world" > "$GITHUB_WORKSPACE/test-source/hello.txt"
-          echo "another file" > "$GITHUB_WORKSPACE/test-source/another.txt"
-          mkdir -p "$GITHUB_WORKSPACE/test-output"
+          mkdir -p "$GITHUB_WORKSPACE/test-src"
+          echo "hello world" > "$GITHUB_WORKSPACE/test-src/file1.txt"
+          echo "foo bar" > "$GITHUB_WORKSPACE/test-src/file2.txt"
 
       - id: compress
         uses: .
         with:
           command: compress
-          source: test-source
+          source: test-src
           dest: test-output
           destfilename: archive
           format: zip
+          includeRoot: "false"
+          verbose: "true"
 
-      - name: Assert zip file was created
+      - name: Log file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
         run: |
-          echo "Checking for zip file at $GITHUB_WORKSPACE/test-output/archive.zip"
+          echo "file_path: $FILE_PATH"
+
+      - name: Assert compressed file exists
+        run: |
+          echo "Listing test-output:"
+          ls -la "$GITHUB_WORKSPACE/test-output/" || true
           if [ ! -f "$GITHUB_WORKSPACE/test-output/archive.zip" ]; then
-            echo "FAIL: expected $GITHUB_WORKSPACE/test-output/archive.zip to exist"
-            ls -la "$GITHUB_WORKSPACE/test-output/" || echo "output dir does not exist"
+            echo "FAIL: expected archive.zip not found in test-output"
             exit 1
           fi
-          echo "PASS: zip file exists"
+          echo "PASS: archive.zip exists"
 
-      - name: Assert zip file is valid
+      - name: Assert zip file is valid and contains expected files
         run: |
-          unzip -t "$GITHUB_WORKSPACE/test-output/archive.zip"
-          if [ $? -ne 0 ]; then
-            echo "FAIL: zip file is not valid"
+          unzip -l "$GITHUB_WORKSPACE/test-output/archive.zip"
+          if ! unzip -l "$GITHUB_WORKSPACE/test-output/archive.zip" | grep -q "file1.txt"; then
+            echo "FAIL: file1.txt not found in archive"
             exit 1
           fi
-          echo "PASS: zip file is valid"
+          if ! unzip -l "$GITHUB_WORKSPACE/test-output/archive.zip" | grep -q "file2.txt"; then
+            echo "FAIL: file2.txt not found in archive"
+            exit 1
+          fi
+          echo "PASS: zip archive contains expected files"
