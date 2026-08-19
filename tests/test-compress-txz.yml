@@ -1,4 +1,4 @@
-name: Test compress tbz2 format
+name: Test compress txz format
 on:
   workflow_dispatch:
 jobs:
@@ -9,18 +9,18 @@ jobs:
 
       - name: Create source files to compress
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/tbz2-src"
-          echo "Hello TBZ2" > "$GITHUB_WORKSPACE/tbz2-src/hello.txt"
-          echo "More data" > "$GITHUB_WORKSPACE/tbz2-src/more.txt"
+          mkdir -p "$GITHUB_WORKSPACE/txz-src"
+          echo "Hello TXZ" > "$GITHUB_WORKSPACE/txz-src/hello.txt"
+          echo "More data" > "$GITHUB_WORKSPACE/txz-src/more.txt"
 
       - id: compress
         uses: .
         with:
           command: compress
-          source: tbz2-src
-          dest: tbz2-output
+          source: txz-src
+          dest: txz-output
           destfilename: archive
-          format: tbz2
+          format: txz
 
       - name: Assert file_path output is set
         env:
@@ -46,14 +46,14 @@ jobs:
 
       - name: Assert archive file exists
         run: |
-          if [ ! -f "$GITHUB_WORKSPACE/tbz2-output/archive.tbz2" ]; then
-            echo "FAIL: expected archive file not found at tbz2-output/archive.tbz2"
-            ls -la "$GITHUB_WORKSPACE/tbz2-output/" 2>/dev/null || echo "Directory does not exist"
+          if [ ! -f "$GITHUB_WORKSPACE/txz-output/archive.txz" ]; then
+            echo "FAIL: expected archive file not found at txz-output/archive.txz"
+            ls -la "$GITHUB_WORKSPACE/txz-output/" 2>/dev/null || echo "Directory does not exist"
             exit 1
           fi
           echo "PASS: archive file exists"
 
-      - name: Assert archive is valid tbz2
+      - name: Assert archive is valid txz
         run: |
-          tar -tjf "$GITHUB_WORKSPACE/tbz2-output/archive.tbz2"
-          echo "PASS: archive is a valid tbz2 file"
+          tar -tJf "$GITHUB_WORKSPACE/txz-output/archive.txz"
+          echo "PASS: archive is a valid txz file"

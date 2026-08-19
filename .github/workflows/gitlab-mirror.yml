@@ -1,0 +1,42 @@
+name: Backup GitHub to GitLab
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - .github/workflows/*
+  workflow_dispatch:
+
+# Mirror is a one-way push to GitLab — the only GitHub-side need is
+# `actions/checkout` reading this repo's contents. Anything beyond that
+# (issues, packages, pull-requests) is left at the default (none).
+permissions:
+  contents: read
+
+# Serialize mirror pushes. cancel-in-progress: false because force-pushing
+# `--all` is non-atomic — interrupting a run mid-push can leave GitLab with
+# partial refs. Letting the in-flight run finish keeps the mirror
+# consistent.
+concurrency:
+  group: gitlab-mirror
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitHub Repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Mirror to GitLab
+        uses: somaz94/multi-git-mirror@57deca5b43e87567de4351083d1318ced1e983b6 # v1
+        with:
+          targets: |
+            gitlab::https://gitlab.com/backup6695808/compress-decompress.git
+          gitlab_token: ${{ secrets.GITLAB_TOKEN }}
+          mirror_branches: 'all'
+          mirror_tags: 'true'
+          force_push: 'true'

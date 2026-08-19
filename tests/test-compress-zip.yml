@@ -1,4 +1,4 @@
-name: Test compress zip
+name: Test compress zip format
 on:
   workflow_dispatch:
 jobs:
@@ -7,54 +7,53 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create source directory with files
+      - name: Create source files to compress
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/test-source"
-          echo "hello world" > "$GITHUB_WORKSPACE/test-source/file1.txt"
-          echo "another file" > "$GITHUB_WORKSPACE/test-source/file2.txt"
+          mkdir -p "$GITHUB_WORKSPACE/test-src"
+          echo "Hello World" > "$GITHUB_WORKSPACE/test-src/hello.txt"
+          echo "Test file 2" > "$GITHUB_WORKSPACE/test-src/file2.txt"
 
       - id: compress
         uses: .
         with:
           command: compress
-          source: test-source
+          source: test-src
           dest: test-output
           destfilename: archive
           format: zip
-          verbose: "true"
 
       - name: Assert file_path output is set
         env:
-          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+          ACTUAL: ${{ steps.compress.outputs.file_path }}
         run: |
-          echo "file_path: $FILE_PATH"
-          if [ -z "$FILE_PATH" ]; then
+          echo "actual file_path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
             echo "FAIL: file_path output is empty"
             exit 1
           fi
-          echo "PASS: file_path is set to $FILE_PATH"
+          echo "PASS: file_path is set to $ACTUAL"
 
       - name: Assert checksum output is set
         env:
-          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+          ACTUAL: ${{ steps.compress.outputs.checksum }}
         run: |
-          echo "checksum: $CHECKSUM"
-          if [ -z "$CHECKSUM" ]; then
+          echo "actual checksum: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
             echo "FAIL: checksum output is empty"
             exit 1
           fi
           echo "PASS: checksum is set"
 
-      - name: Assert zip file exists
+      - name: Assert archive file exists
         run: |
           if [ ! -f "$GITHUB_WORKSPACE/test-output/archive.zip" ]; then
-            echo "FAIL: expected $GITHUB_WORKSPACE/test-output/archive.zip to exist"
-            ls -la "$GITHUB_WORKSPACE/test-output/" || echo "output dir does not exist"
+            echo "FAIL: expected archive file not found at test-output/archive.zip"
+            ls -la "$GITHUB_WORKSPACE/test-output/" 2>/dev/null || echo "Directory does not exist"
             exit 1
           fi
-          echo "PASS: archive.zip exists"
+          echo "PASS: archive file exists"
 
-      - name: Assert zip file is valid
+      - name: Assert archive is valid zip
         run: |
           unzip -t "$GITHUB_WORKSPACE/test-output/archive.zip"
-          echo "PASS: zip file is valid"
+          echo "PASS: archive is a valid zip file"

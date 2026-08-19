@@ -1,0 +1,68 @@
+name: Create release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"  # v1.0.1, v1.0.2 등만 매칭
+
+permissions:
+  contents: write  # releases와 태그를 생성하기 위한 권한
+  pull-requests: write  # changelog 생성을 위한 권한
+
+jobs:
+  build:
+    name: "Release"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Check-out"
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN }}
+
+      - name: Get previous semver tag
+        id: prev_tag
+        env:
+          CURRENT_TAG: ${{ github.ref_name }}
+        run: |
+          PREVIOUS_TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | grep -B1 "^${CURRENT_TAG}$" | head -n1)
+          if [ "$PREVIOUS_TAG" = "$CURRENT_TAG" ]; then
+            PREVIOUS_TAG=""
+          fi
+          safe=$(printf '%s' "$PREVIOUS_TAG" | tr -d '\n\r')
+          echo "tag=$safe" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog with git-cliff
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          OUTPUT: RELEASE.md
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Append full changelog link
+        if: steps.prev_tag.outputs.tag != ''
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PREV_TAG: ${{ steps.prev_tag.outputs.tag }}
+          CURRENT_TAG: ${{ github.ref_name }}
+        run: |
+          echo "" >> RELEASE.md
+          echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${CURRENT_TAG}" >> RELEASE.md
+
+      - name: "Create GitHub release"
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: RELEASE.md
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Update major version tag"
+        uses: somaz94/major-tag-action@a0a529b712c29c4ca752640308b0de7a28b36292 # v1
+        with:
+          tag: ${{ github.ref_name }}
+          github_token: ${{ secrets.PAT_TOKEN }}

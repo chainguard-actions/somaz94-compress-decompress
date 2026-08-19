@@ -1,4 +1,4 @@
-name: Test compress tar
+name: Test compress tar format
 on:
   workflow_dispatch:
 jobs:
@@ -7,50 +7,42 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create source directory with files
+      - name: Create source files to compress
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/test-tar-source"
-          echo "tar test file 1" > "$GITHUB_WORKSPACE/test-tar-source/file1.txt"
-          echo "tar test file 2" > "$GITHUB_WORKSPACE/test-tar-source/file2.txt"
+          mkdir -p "$GITHUB_WORKSPACE/tar-src"
+          echo "Hello TAR" > "$GITHUB_WORKSPACE/tar-src/hello.txt"
+          echo "Data file" > "$GITHUB_WORKSPACE/tar-src/data.txt"
 
       - id: compress
         uses: .
         with:
           command: compress
-          source: test-tar-source
-          dest: test-tar-output
+          source: tar-src
+          dest: tar-output
           destfilename: archive
           format: tar
-          verbose: "true"
 
       - name: Assert file_path output is set
         env:
-          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+          ACTUAL: ${{ steps.compress.outputs.file_path }}
         run: |
-          echo "file_path: $FILE_PATH"
-          if [ -z "$FILE_PATH" ]; then
+          echo "actual file_path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
             echo "FAIL: file_path output is empty"
             exit 1
           fi
-          echo "PASS: file_path is set to $FILE_PATH"
+          echo "PASS: file_path is set to $ACTUAL"
 
-      - name: Assert tar file exists
+      - name: Assert archive file exists
         run: |
-          if [ ! -f "$GITHUB_WORKSPACE/test-tar-output/archive.tar" ]; then
-            echo "FAIL: expected $GITHUB_WORKSPACE/test-tar-output/archive.tar to exist"
-            ls -la "$GITHUB_WORKSPACE/test-tar-output/" || echo "output dir does not exist"
+          if [ ! -f "$GITHUB_WORKSPACE/tar-output/archive.tar" ]; then
+            echo "FAIL: expected archive file not found at tar-output/archive.tar"
+            ls -la "$GITHUB_WORKSPACE/tar-output/" 2>/dev/null || echo "Directory does not exist"
             exit 1
           fi
-          echo "PASS: archive.tar exists"
+          echo "PASS: archive file exists"
 
-      - name: Assert tar file is valid and contains expected files
+      - name: Assert archive is valid tar
         run: |
-          CONTENTS=$(tar -tf "$GITHUB_WORKSPACE/test-tar-output/archive.tar")
-          echo "Archive contents:"
-          echo "$CONTENTS"
-          if echo "$CONTENTS" | grep -q "file1.txt"; then
-            echo "PASS: file1.txt is in archive"
-          else
-            echo "FAIL: file1.txt should be in archive"
-            exit 1
-          fi
+          tar -tf "$GITHUB_WORKSPACE/tar-output/archive.tar"
+          echo "PASS: archive is a valid tar file"

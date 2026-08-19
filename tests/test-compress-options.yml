@@ -1,0 +1,63 @@
+name: Test compress with verbose and compression level options
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/opts-src"
+          echo "Compression level test" > "$GITHUB_WORKSPACE/opts-src/test.txt"
+          # Create a larger file to make compression meaningful
+          python3 -c "print('A' * 10000)" > "$GITHUB_WORKSPACE/opts-src/large.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: opts-src
+          dest: opts-output
+          destfilename: archive
+          format: zip
+          compression_level: "9"
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          ACTUAL: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "actual file_path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is set to $ACTUAL"
+
+      - name: Assert checksum output is set
+        env:
+          ACTUAL: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "actual checksum: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          # SHA256 checksums are 64 hex characters
+          if ! echo "$ACTUAL" | grep -qE '^[0-9a-f]{64}$'; then
+            echo "FAIL: checksum does not look like a valid SHA256 hash: $ACTUAL"
+            exit 1
+          fi
+          echo "PASS: checksum is a valid SHA256 hash"
+
+      - name: Assert archive file exists and is valid
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/opts-output/archive.zip" ]; then
+            echo "FAIL: expected archive file not found"
+            ls -la "$GITHUB_WORKSPACE/opts-output/" 2>/dev/null || echo "Directory does not exist"
+            exit 1
+          fi
+          unzip -t "$GITHUB_WORKSPACE/opts-output/archive.zip"
+          echo "PASS: archive is valid"

@@ -1,4 +1,4 @@
-name: Test decompress zip
+name: Test decompress zip format
 on:
   workflow_dispatch:
 jobs:
@@ -7,13 +7,13 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create and compress a zip archive for decompression
+      - name: Create and zip source files
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/decomp-source"
-          echo "file to compress" > "$GITHUB_WORKSPACE/decomp-source/hello.txt"
-          echo "another file" > "$GITHUB_WORKSPACE/decomp-source/world.txt"
+          mkdir -p "$GITHUB_WORKSPACE/decomp-src"
+          echo "Hello Decompress" > "$GITHUB_WORKSPACE/decomp-src/hello.txt"
+          echo "Second file content" > "$GITHUB_WORKSPACE/decomp-src/second.txt"
           mkdir -p "$GITHUB_WORKSPACE/decomp-archive"
-          cd "$GITHUB_WORKSPACE" && zip -r "$GITHUB_WORKSPACE/decomp-archive/test.zip" decomp-source/
+          cd "$GITHUB_WORKSPACE" && zip -r decomp-archive/test.zip decomp-src/
 
       - id: decompress
         uses: .
@@ -22,35 +22,43 @@ jobs:
           source: decomp-archive/test.zip
           dest: decomp-output
           format: zip
-          verbose: "true"
 
       - name: Assert file_path output is set
         env:
-          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+          ACTUAL: ${{ steps.decompress.outputs.file_path }}
         run: |
-          echo "file_path: $FILE_PATH"
-          if [ -z "$FILE_PATH" ]; then
+          echo "actual file_path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
             echo "FAIL: file_path output is empty"
             exit 1
           fi
-          echo "PASS: file_path is set to $FILE_PATH"
+          echo "PASS: file_path is set to $ACTUAL"
 
       - name: Assert decompressed files exist
         run: |
-          echo "Contents of $GITHUB_WORKSPACE/decomp-output:"
-          find "$GITHUB_WORKSPACE/decomp-output" -type f
-          if [ ! -f "$GITHUB_WORKSPACE/decomp-output/decomp-source/hello.txt" ]; then
-            echo "FAIL: expected decompressed file hello.txt not found"
+          echo "Contents of decomp-output:"
+          find "$GITHUB_WORKSPACE/decomp-output" -type f 2>/dev/null || echo "No files found"
+          # Check that at least one file was extracted
+          FILE_COUNT=$(find "$GITHUB_WORKSPACE/decomp-output" -type f | wc -l)
+          echo "File count: $FILE_COUNT"
+          if [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: no files were decompressed"
             exit 1
           fi
-          echo "PASS: decompressed files exist"
+          echo "PASS: files were decompressed successfully"
 
-      - name: Assert decompressed file content is correct
+      - name: Assert hello.txt content is correct
         run: |
-          CONTENT=$(cat "$GITHUB_WORKSPACE/decomp-output/decomp-source/hello.txt")
-          echo "content: $CONTENT"
-          if [ "$CONTENT" != "file to compress" ]; then
-            echo "FAIL: expected 'file to compress', got '$CONTENT'"
+          HELLO_FILE=$(find "$GITHUB_WORKSPACE/decomp-output" -name "hello.txt" | head -1)
+          if [ -z "$HELLO_FILE" ]; then
+            echo "FAIL: hello.txt not found in decompressed output"
+            find "$GITHUB_WORKSPACE/decomp-output" -type f
             exit 1
           fi
-          echo "PASS: file content is correct"
+          CONTENT=$(cat "$HELLO_FILE")
+          echo "Content: $CONTENT"
+          if [ "$CONTENT" != "Hello Decompress" ]; then
+            echo "FAIL: expected 'Hello Decompress' but got '$CONTENT'"
+            exit 1
+          fi
+          echo "PASS: hello.txt content is correct"

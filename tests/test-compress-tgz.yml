@@ -1,4 +1,4 @@
-name: Test compress tgz
+name: Test compress tgz format
 on:
   workflow_dispatch:
 jobs:
@@ -7,45 +7,53 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create source directory with files
+      - name: Create source files to compress
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/test-tgz-source"
-          echo "hello tgz" > "$GITHUB_WORKSPACE/test-tgz-source/data.txt"
-          echo "more data" > "$GITHUB_WORKSPACE/test-tgz-source/info.txt"
-          mkdir -p "$GITHUB_WORKSPACE/test-tgz-source/subdir"
-          echo "nested file" > "$GITHUB_WORKSPACE/test-tgz-source/subdir/nested.txt"
+          mkdir -p "$GITHUB_WORKSPACE/tgz-src"
+          echo "Hello TGZ" > "$GITHUB_WORKSPACE/tgz-src/hello.txt"
+          echo "Another file" > "$GITHUB_WORKSPACE/tgz-src/another.txt"
 
       - id: compress
         uses: .
         with:
           command: compress
-          source: test-tgz-source
-          dest: test-tgz-output
+          source: tgz-src
+          dest: tgz-output
           destfilename: archive
           format: tgz
-          verbose: "true"
 
       - name: Assert file_path output is set
         env:
-          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+          ACTUAL: ${{ steps.compress.outputs.file_path }}
         run: |
-          echo "file_path: $FILE_PATH"
-          if [ -z "$FILE_PATH" ]; then
+          echo "actual file_path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
             echo "FAIL: file_path output is empty"
             exit 1
           fi
-          echo "PASS: file_path is set to $FILE_PATH"
+          echo "PASS: file_path is set to $ACTUAL"
 
-      - name: Assert tgz file exists
+      - name: Assert checksum output is set
+        env:
+          ACTUAL: ${{ steps.compress.outputs.checksum }}
         run: |
-          if [ ! -f "$GITHUB_WORKSPACE/test-tgz-output/archive.tgz" ]; then
-            echo "FAIL: expected $GITHUB_WORKSPACE/test-tgz-output/archive.tgz to exist"
-            ls -la "$GITHUB_WORKSPACE/test-tgz-output/" || echo "output dir does not exist"
+          echo "actual checksum: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: checksum output is empty"
             exit 1
           fi
-          echo "PASS: archive.tgz exists"
+          echo "PASS: checksum is set"
 
-      - name: Assert tgz file is valid
+      - name: Assert archive file exists
         run: |
-          tar -tzf "$GITHUB_WORKSPACE/test-tgz-output/archive.tgz"
-          echo "PASS: tgz file is valid"
+          if [ ! -f "$GITHUB_WORKSPACE/tgz-output/archive.tgz" ]; then
+            echo "FAIL: expected archive file not found at tgz-output/archive.tgz"
+            ls -la "$GITHUB_WORKSPACE/tgz-output/" 2>/dev/null || echo "Directory does not exist"
+            exit 1
+          fi
+          echo "PASS: archive file exists"
+
+      - name: Assert archive is valid tgz
+        run: |
+          tar -tzf "$GITHUB_WORKSPACE/tgz-output/archive.tgz"
+          echo "PASS: archive is a valid tgz file"
