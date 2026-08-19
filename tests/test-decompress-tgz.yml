@@ -1,0 +1,55 @@
+name: Test decompress tgz
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create and compress source files as tgz
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tgz-decomp-source"
+          echo "Hello from tgz" > "$GITHUB_WORKSPACE/tgz-decomp-source/hello.txt"
+          echo "Another tgz file" > "$GITHUB_WORKSPACE/tgz-decomp-source/another.txt"
+          mkdir -p "$GITHUB_WORKSPACE/tgz-decomp-archive"
+          cd "$GITHUB_WORKSPACE" && tar -czf "$GITHUB_WORKSPACE/tgz-decomp-archive/test.tgz" tgz-decomp-source/
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: tgz-decomp-archive/test.tgz
+          dest: tgz-decomp-output
+          format: tgz
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is set to $FILE_PATH"
+
+      - name: Assert decompressed files exist
+        run: |
+          echo "Contents of $GITHUB_WORKSPACE/tgz-decomp-output:"
+          find "$GITHUB_WORKSPACE/tgz-decomp-output" -type f || echo "No files found"
+          if ! find "$GITHUB_WORKSPACE/tgz-decomp-output" -name "hello.txt" | grep -q .; then
+            echo "FAIL: expected decompressed file hello.txt not found"
+            exit 1
+          fi
+          echo "PASS: decompressed files exist"
+
+      - name: Assert decompressed file content is correct
+        run: |
+          CONTENT=$(find "$GITHUB_WORKSPACE/tgz-decomp-output" -name "hello.txt" -exec cat {} \;)
+          echo "content: $CONTENT"
+          if [ "$CONTENT" != "Hello from tgz" ]; then
+            echo "FAIL: expected 'Hello from tgz' but got '$CONTENT'"
+            exit 1
+          fi
+          echo "PASS: file content is correct"

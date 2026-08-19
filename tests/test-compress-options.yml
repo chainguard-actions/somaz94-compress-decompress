@@ -1,0 +1,75 @@
+name: Test compress with options (verbose, compression level, exclude)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-opts-source"
+          echo "Important file" > "$GITHUB_WORKSPACE/test-opts-source/important.txt"
+          echo "Excluded file" > "$GITHUB_WORKSPACE/test-opts-source/exclude-me.log"
+          echo "Another important file" > "$GITHUB_WORKSPACE/test-opts-source/important2.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-opts-source
+          dest: test-opts-output
+          destfilename: archive
+          format: zip
+          exclude: "*.log"
+          compression_level: "9"
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path is set to $FILE_PATH"
+
+      - name: Assert archive file exists
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/test-opts-output/archive.zip" ]; then
+            echo "FAIL: expected archive file not found at $GITHUB_WORKSPACE/test-opts-output/archive.zip"
+            ls -la "$GITHUB_WORKSPACE/test-opts-output/" || echo "Directory does not exist"
+            exit 1
+          fi
+          echo "PASS: archive file exists"
+
+      - name: Assert archive is valid zip
+        run: |
+          if ! unzip -t "$GITHUB_WORKSPACE/test-opts-output/archive.zip"; then
+            echo "FAIL: archive is not a valid zip file"
+            exit 1
+          fi
+          echo "PASS: archive is a valid zip file"
+
+      - name: Assert excluded file is not in archive
+        run: |
+          CONTENTS=$(unzip -l "$GITHUB_WORKSPACE/test-opts-output/archive.zip")
+          echo "Archive contents: $CONTENTS"
+          if echo "$CONTENTS" | grep -q "exclude-me.log"; then
+            echo "FAIL: excluded file 'exclude-me.log' found in archive"
+            exit 1
+          fi
+          echo "PASS: excluded file is not in archive"
+
+      - name: Assert important files are in archive
+        run: |
+          CONTENTS=$(unzip -l "$GITHUB_WORKSPACE/test-opts-output/archive.zip")
+          echo "Archive contents: $CONTENTS"
+          if ! echo "$CONTENTS" | grep -q "important.txt"; then
+            echo "FAIL: expected file 'important.txt' not found in archive"
+            exit 1
+          fi
+          echo "PASS: important files are in archive"
