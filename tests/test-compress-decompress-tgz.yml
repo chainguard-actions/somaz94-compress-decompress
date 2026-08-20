@@ -1,0 +1,89 @@
+name: Test compress and decompress tgz round-trip
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tgz-source"
+          echo "Hello from tgz test" > "$GITHUB_WORKSPACE/tgz-source/hello.txt"
+          echo "Another file content" > "$GITHUB_WORKSPACE/tgz-source/world.txt"
+          mkdir -p "$GITHUB_WORKSPACE/tgz-output"
+          mkdir -p "$GITHUB_WORKSPACE/tgz-extracted"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./tgz-source
+          dest: ./tgz-output
+          destfilename: archive
+          format: tgz
+          verbose: "true"
+
+      - name: Assert compress succeeded
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "checksum: $CHECKSUM"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          # Verify the archive actually exists on disk
+          ARCHIVE="$GITHUB_WORKSPACE/tgz-output/archive.tgz"
+          if [ ! -f "$ARCHIVE" ]; then
+            echo "FAIL: compressed file not found at $ARCHIVE"
+            echo "Contents of tgz-output:"
+            ls -la "$GITHUB_WORKSPACE/tgz-output/" || true
+            exit 1
+          fi
+          echo "PASS: compress succeeded"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ./tgz-output/archive.tgz
+          dest: ./tgz-extracted
+          format: tgz
+          verbose: "true"
+
+      - name: Assert decompress succeeded
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+          FILE_COUNT: ${{ steps.decompress.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: decompress file_path output is empty"
+            exit 1
+          fi
+          if [ -z "$FILE_COUNT" ]; then
+            echo "FAIL: file_count output is empty"
+            exit 1
+          fi
+          echo "PASS: decompress succeeded"
+
+      - name: Assert extracted files exist
+        run: |
+          echo "Contents of tgz-extracted:"
+          find "$GITHUB_WORKSPACE/tgz-extracted" -type f | sort
+          # Check that at least one of the original files was extracted
+          if find "$GITHUB_WORKSPACE/tgz-extracted" -name "hello.txt" | grep -q .; then
+            echo "PASS: hello.txt found in extracted output"
+          else
+            echo "FAIL: hello.txt not found in extracted output"
+            exit 1
+          fi

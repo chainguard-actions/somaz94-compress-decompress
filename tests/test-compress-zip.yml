@@ -1,0 +1,81 @@
+name: Test compress zip format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/zip-source"
+          echo "Hello World" > "$GITHUB_WORKSPACE/zip-source/file1.txt"
+          echo "Goodbye World" > "$GITHUB_WORKSPACE/zip-source/file2.txt"
+          mkdir -p "$GITHUB_WORKSPACE/zip-output"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./zip-source
+          dest: ./zip-output
+          destfilename: archive
+          format: zip
+          verbose: "true"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert checksum output is set
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          echo "PASS: checksum=$CHECKSUM"
+
+      - name: Assert compressed file exists on disk
+        run: |
+          ARCHIVE="$GITHUB_WORKSPACE/zip-output/archive.zip"
+          echo "Checking file at: $ARCHIVE"
+          if [ ! -f "$ARCHIVE" ]; then
+            echo "FAIL: compressed file not found at $ARCHIVE"
+            echo "Contents of zip-output:"
+            ls -la "$GITHUB_WORKSPACE/zip-output/" || true
+            exit 1
+          fi
+          echo "PASS: file exists"
+
+      - name: Assert file_count output is set
+        env:
+          FILE_COUNT: ${{ steps.compress.outputs.file_count }}
+        run: |
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_COUNT" ]; then
+            echo "FAIL: file_count output is empty"
+            exit 1
+          fi
+          echo "PASS: file_count=$FILE_COUNT"
+
+      - name: Assert duration output is set
+        env:
+          DURATION: ${{ steps.compress.outputs.duration }}
+        run: |
+          echo "duration: $DURATION"
+          if [ -z "$DURATION" ]; then
+            echo "FAIL: duration output is empty"
+            exit 1
+          fi
+          echo "PASS: duration=$DURATION"

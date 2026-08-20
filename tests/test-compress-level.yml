@@ -1,0 +1,98 @@
+name: Test compress with compression level
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files with compressible content
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/level-source"
+          # Create files with repetitive content that compresses well
+          python3 -c "print('A' * 10000)" > "$GITHUB_WORKSPACE/level-source/compressible.txt"
+          python3 -c "print('B' * 10000)" > "$GITHUB_WORKSPACE/level-source/compressible2.txt"
+          mkdir -p "$GITHUB_WORKSPACE/level-output"
+
+      - id: compress-level-9
+        uses: .
+        with:
+          command: compress
+          source: ./level-source
+          dest: ./level-output
+          destfilename: archive-level9
+          format: zip
+          compression_level: "9"
+          verbose: "true"
+
+      - name: Assert max compression succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-level-9.outputs.file_path }}
+          CHECKSUM: ${{ steps.compress-level-9.outputs.checksum }}
+          ORIGINAL_SIZE: ${{ steps.compress-level-9.outputs.original_size }}
+          COMPRESSED_SIZE: ${{ steps.compress-level-9.outputs.compressed_size }}
+          COMPRESSION_RATIO: ${{ steps.compress-level-9.outputs.compression_ratio }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "checksum: $CHECKSUM"
+          echo "original_size: $ORIGINAL_SIZE"
+          echo "compressed_size: $COMPRESSED_SIZE"
+          echo "compression_ratio: $COMPRESSION_RATIO"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/level-output/archive-level9.zip" ]; then
+            echo "FAIL: compressed file not found"
+            echo "Contents of level-output:"
+            ls -la "$GITHUB_WORKSPACE/level-output/" || true
+            exit 1
+          fi
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          if [ -z "$ORIGINAL_SIZE" ]; then
+            echo "FAIL: original_size output is empty"
+            exit 1
+          fi
+          if [ -z "$COMPRESSED_SIZE" ]; then
+            echo "FAIL: compressed_size output is empty"
+            exit 1
+          fi
+          if [ -z "$COMPRESSION_RATIO" ]; then
+            echo "FAIL: compression_ratio output is empty"
+            exit 1
+          fi
+          echo "PASS: max compression succeeded, ratio=$COMPRESSION_RATIO%"
+
+      - id: compress-level-0
+        uses: .
+        with:
+          command: compress
+          source: ./level-source
+          dest: ./level-output
+          destfilename: archive-level0
+          format: zip
+          compression_level: "0"
+          verbose: "true"
+
+      - name: Assert store-only compression succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-level-0.outputs.file_path }}
+          COMPRESSED_SIZE: ${{ steps.compress-level-0.outputs.compressed_size }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "compressed_size: $COMPRESSED_SIZE"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/level-output/archive-level0.zip" ]; then
+            echo "FAIL: store-only file not found"
+            echo "Contents of level-output:"
+            ls -la "$GITHUB_WORKSPACE/level-output/" || true
+            exit 1
+          fi
+          echo "PASS: store-only compression succeeded"

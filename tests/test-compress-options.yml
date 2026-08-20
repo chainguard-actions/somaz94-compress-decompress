@@ -1,0 +1,87 @@
+name: Test compress with includeRoot and exclude options
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/opts-source"
+          echo "Include this" > "$GITHUB_WORKSPACE/opts-source/include.txt"
+          echo "Exclude this" > "$GITHUB_WORKSPACE/opts-source/exclude.log"
+          echo "Also include" > "$GITHUB_WORKSPACE/opts-source/also-include.txt"
+          mkdir -p "$GITHUB_WORKSPACE/opts-output"
+
+      - id: compress-no-root
+        uses: .
+        with:
+          command: compress
+          source: ./opts-source
+          dest: ./opts-output
+          destfilename: no-root
+          format: zip
+          includeRoot: "false"
+          verbose: "true"
+
+      - name: Assert compress without root succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-no-root.outputs.file_path }}
+          FILE_COUNT: ${{ steps.compress-no-root.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/opts-output/no-root.zip" ]; then
+            echo "FAIL: compressed file not found"
+            echo "Contents of opts-output:"
+            ls -la "$GITHUB_WORKSPACE/opts-output/" || true
+            exit 1
+          fi
+          echo "PASS: compress without root succeeded, file_count=$FILE_COUNT"
+
+      - id: compress-with-exclude
+        uses: .
+        with:
+          command: compress
+          source: ./opts-source
+          dest: ./opts-output
+          destfilename: with-exclude
+          format: zip
+          exclude: "*.log"
+          verbose: "true"
+
+      - name: Assert compress with exclude succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-with-exclude.outputs.file_path }}
+          FILE_COUNT: ${{ steps.compress-with-exclude.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/opts-output/with-exclude.zip" ]; then
+            echo "FAIL: compressed file not found"
+            echo "Contents of opts-output:"
+            ls -la "$GITHUB_WORKSPACE/opts-output/" || true
+            exit 1
+          fi
+          echo "PASS: compress with exclude succeeded, file_count=$FILE_COUNT"
+
+      - name: Assert excluded file is not in archive
+        run: |
+          ARCHIVE="$GITHUB_WORKSPACE/opts-output/with-exclude.zip"
+          echo "Checking archive contents for excluded file..."
+          # Use unzip to list contents and verify exclude.log is not present
+          if unzip -l "$ARCHIVE" | grep -q "exclude.log"; then
+            echo "FAIL: exclude.log should not be in the archive"
+            exit 1
+          fi
+          echo "PASS: exclude.log correctly excluded from archive"

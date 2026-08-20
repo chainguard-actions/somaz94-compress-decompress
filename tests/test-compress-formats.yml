@@ -1,0 +1,122 @@
+name: Test compress multiple formats
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/fmt-source"
+          echo "Format test content" > "$GITHUB_WORKSPACE/fmt-source/test.txt"
+          mkdir -p "$GITHUB_WORKSPACE/fmt-output"
+
+      - id: compress-tar
+        uses: .
+        with:
+          command: compress
+          source: ./fmt-source
+          dest: ./fmt-output
+          destfilename: archive-tar
+          format: tar
+          verbose: "true"
+
+      - name: Assert tar compress succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-tar.outputs.file_path }}
+        run: |
+          echo "tar file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: tar file_path output is empty"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/fmt-output/archive-tar.tar" ]; then
+            echo "FAIL: tar file not found"
+            echo "Contents of fmt-output:"
+            ls -la "$GITHUB_WORKSPACE/fmt-output/" || true
+            exit 1
+          fi
+          echo "PASS: tar compress succeeded"
+
+      - id: compress-tbz2
+        uses: .
+        with:
+          command: compress
+          source: ./fmt-source
+          dest: ./fmt-output
+          destfilename: archive-tbz2
+          format: tbz2
+          verbose: "true"
+
+      - name: Assert tbz2 compress succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-tbz2.outputs.file_path }}
+        run: |
+          echo "tbz2 file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: tbz2 file_path output is empty"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/fmt-output/archive-tbz2.tbz2" ]; then
+            echo "FAIL: tbz2 file not found"
+            echo "Contents of fmt-output:"
+            ls -la "$GITHUB_WORKSPACE/fmt-output/" || true
+            exit 1
+          fi
+          echo "PASS: tbz2 compress succeeded"
+
+      - id: compress-txz
+        uses: .
+        with:
+          command: compress
+          source: ./fmt-source
+          dest: ./fmt-output
+          destfilename: archive-txz
+          format: txz
+          verbose: "true"
+
+      - name: Assert txz compress succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-txz.outputs.file_path }}
+        run: |
+          echo "txz file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: txz file_path output is empty"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/fmt-output/archive-txz.txz" ]; then
+            echo "FAIL: txz file not found"
+            echo "Contents of fmt-output:"
+            ls -la "$GITHUB_WORKSPACE/fmt-output/" || true
+            exit 1
+          fi
+          echo "PASS: txz compress succeeded"
+
+      - id: compress-tzst
+        uses: .
+        with:
+          command: compress
+          source: ./fmt-source
+          dest: ./fmt-output
+          destfilename: archive-tzst
+          format: tzst
+          verbose: "true"
+
+      - name: Assert tzst compress succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-tzst.outputs.file_path }}
+        run: |
+          echo "tzst file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: tzst file_path output is empty"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/fmt-output/archive-tzst.tzst" ]; then
+            echo "FAIL: tzst file not found"
+            echo "Contents of fmt-output:"
+            ls -la "$GITHUB_WORKSPACE/fmt-output/" || true
+            exit 1
+          fi
+          echo "PASS: tzst compress succeeded"

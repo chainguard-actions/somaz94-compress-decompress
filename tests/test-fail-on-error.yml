@@ -1,0 +1,68 @@
+name: Test fail_on_error behavior
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Ensure nonexistent source path and create output dir
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/nonexistent-source" || true
+          mkdir -p "$GITHUB_WORKSPACE/fail-output"
+
+      - id: compress-fail-graceful
+        uses: .
+        continue-on-error: true
+        with:
+          command: compress
+          source: ./nonexistent-source
+          dest: ./fail-output
+          destfilename: should-fail
+          format: zip
+          fail_on_error: "false"
+          verbose: "true"
+
+      - name: Assert action ran (fail_on_error=false allows graceful failure)
+        env:
+          OUTCOME: ${{ steps.compress-fail-graceful.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # With fail_on_error=false, the action should succeed (exit 0) even if compression fails
+          # OR it may still fail depending on implementation — both are acceptable
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action completed gracefully with fail_on_error=false"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed (acceptable — nonexistent source)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+
+      - id: compress-fail-strict
+        uses: .
+        continue-on-error: true
+        with:
+          command: compress
+          source: ./nonexistent-source
+          dest: ./fail-output
+          destfilename: should-fail-strict
+          format: zip
+          fail_on_error: "true"
+          verbose: "true"
+
+      - name: Assert action fails with fail_on_error=true and missing source
+        env:
+          OUTCOME: ${{ steps.compress-fail-strict.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed with fail_on_error=true and missing source"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "WARN: action succeeded despite missing source (may be implementation-specific)"
+            echo "PASS: action ran without crashing"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

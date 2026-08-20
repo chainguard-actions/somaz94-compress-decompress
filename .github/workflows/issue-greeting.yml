@@ -1,0 +1,12 @@
+name: Issue Greeting Bot
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  greeting:
+    uses: somaz94/.github/.github/workflows/issue-greeting-reusable.yml@4395663967fb07d44defafb52018c667ae383897 # main
