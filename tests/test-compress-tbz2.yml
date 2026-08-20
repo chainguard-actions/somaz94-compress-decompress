@@ -1,0 +1,97 @@
+name: Test compress tbz2 format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p tbz2-source
+          echo "Bzip2 compressed content" > tbz2-source/data.txt
+          echo "More bzip2 data" > tbz2-source/extra.txt
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./tbz2-source
+          dest: ./tbz2-dest
+          destfilename: archive
+          format: tbz2
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive file exists on host
+        run: |
+          ls -la tbz2-dest/ || true
+          if [ ! -f "tbz2-dest/archive.tbz2" ]; then
+            echo "FAIL: archive not found"
+            exit 1
+          fi
+          echo "PASS: tbz2 archive created"
+
+      - name: Assert checksum output
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          if ! echo "$CHECKSUM" | grep -qE '^[0-9a-f]{64}$'; then
+            echo "FAIL: checksum does not look like a SHA256 hash: $CHECKSUM"
+            exit 1
+          fi
+          echo "PASS: checksum looks valid"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress.outputs.file_path }}
+          dest: ./tbz2-extract
+          format: tbz2
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert decompress succeeded
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: decompress file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: tbz2 decompression succeeded"
+
+      - name: Assert extracted files exist
+        run: |
+          echo "Contents of extract dir:"
+          find tbz2-extract -type f | sort
+          if ! find tbz2-extract -name "data.txt" | grep -q .; then
+            echo "FAIL: data.txt not found in extracted output"
+            exit 1
+          fi
+          CONTENT=$(find tbz2-extract -name "data.txt" -exec cat {} \;)
+          echo "Content: $CONTENT"
+          if [ "$CONTENT" != "Bzip2 compressed content" ]; then
+            echo "FAIL: file content mismatch"
+            exit 1
+          fi
+          echo "PASS: tbz2 round-trip verified"

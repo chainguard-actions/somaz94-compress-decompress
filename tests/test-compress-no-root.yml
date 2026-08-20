@@ -1,0 +1,82 @@
+name: Test compress without root folder
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p noroot-source
+          echo "Content A" > noroot-source/fileA.txt
+          echo "Content B" > noroot-source/fileB.txt
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./noroot-source
+          dest: ./noroot-dest
+          destfilename: noroot
+          format: zip
+          includeRoot: "false"
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive file exists on host
+        run: |
+          ls -la noroot-dest/ || true
+          if [ ! -f "noroot-dest/noroot.zip" ]; then
+            echo "FAIL: archive not found"
+            exit 1
+          fi
+          echo "PASS: archive created without root"
+
+      - name: Assert file_count output
+        env:
+          FILE_COUNT: ${{ steps.compress.outputs.file_count }}
+        run: |
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_COUNT" ]; then
+            echo "FAIL: file_count output is empty"
+            exit 1
+          fi
+          echo "PASS: file_count=$FILE_COUNT"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress.outputs.file_path }}
+          dest: ./noroot-extract
+          format: zip
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert files extracted at root level (no subdirectory)
+        run: |
+          echo "Contents of extract dir:"
+          find noroot-extract -type f | sort
+          # With includeRoot=false, files should be at the top level of the extract dir
+          if ! find noroot-extract -name "fileA.txt" | grep -q .; then
+            echo "FAIL: fileA.txt not found in extracted output"
+            exit 1
+          fi
+          if ! find noroot-extract -name "fileB.txt" | grep -q .; then
+            echo "FAIL: fileB.txt not found in extracted output"
+            exit 1
+          fi
+          echo "PASS: files extracted correctly without root folder"

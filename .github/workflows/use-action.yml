@@ -1,0 +1,126 @@
+name: Smoke Test (Released Action)
+
+on:
+  workflow_dispatch:
+    inputs:
+      run:
+        description: 'workflow run'
+        required: true
+        default: 'true'
+  workflow_run:
+    workflows: ["Create release"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: Smoke Test (${{ matrix.format }}, root=${{ matrix.include_root }})
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    strategy:
+      matrix:
+        format: [zip, tar, tgz, tbz2, txz, tzst]
+        include_root: [true, false]
+      fail-fast: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Create Test Files
+        run: |
+          mkdir -p testdir/subdir
+          echo "Hello World" > testdir/file.txt
+          echo "Nested file" > testdir/subdir/nested.txt
+
+      - name: Compress
+        id: compress
+        uses: somaz94/compress-decompress@5fe50ed1861676e1ea9c6cff48eff02d44a5471a # v1
+        with:
+          command: 'compress'
+          source: './testdir'
+          format: ${{ matrix.format }}
+          includeRoot: ${{ matrix.include_root }}
+          verbose: 'true'
+
+      - name: Set Archive Path
+        id: archive
+        env:
+          MATRIX_INCLUDE_ROOT: ${{ matrix.include_root }}
+          MATRIX_FORMAT: ${{ matrix.format }}
+        run: |
+          safe_format=$(printf '%s' "$MATRIX_FORMAT" | tr -d '\n\r')
+          if [ "$MATRIX_INCLUDE_ROOT" = "true" ]; then
+            echo "path=./testdir.${safe_format}" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=./testdir/testdir.${safe_format}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify Archive Created
+        env:
+          ARCHIVE_PATH: ${{ steps.archive.outputs.path }}
+        run: |
+          if [ ! -f "$ARCHIVE_PATH" ]; then
+            echo "❌ Archive not found: $ARCHIVE_PATH"
+            exit 1
+          fi
+          echo "✅ Archive created: $ARCHIVE_PATH"
+
+      - name: Verify Outputs
+        env:
+          OUT_FILE_PATH: ${{ steps.compress.outputs.file_path }}
+          OUT_CHECKSUM: ${{ steps.compress.outputs.checksum }}
+          OUT_ORIGINAL_SIZE: ${{ steps.compress.outputs.original_size }}
+          OUT_COMPRESSED_SIZE: ${{ steps.compress.outputs.compressed_size }}
+          OUT_COMPRESSION_RATIO: ${{ steps.compress.outputs.compression_ratio }}
+          OUT_FILE_COUNT: ${{ steps.compress.outputs.file_count }}
+          OUT_DURATION: ${{ steps.compress.outputs.duration }}
+        run: |
+          for value in \
+            "file_path=${OUT_FILE_PATH}" \
+            "checksum=${OUT_CHECKSUM}" \
+            "original_size=${OUT_ORIGINAL_SIZE}" \
+            "compressed_size=${OUT_COMPRESSED_SIZE}" \
+            "compression_ratio=${OUT_COMPRESSION_RATIO}" \
+            "file_count=${OUT_FILE_COUNT}" \
+            "duration=${OUT_DURATION}"; do
+            case "$value" in
+              *=) echo "❌ empty output: ${value%=}"; exit 1 ;;
+              *) echo "✅ $value" ;;
+            esac
+          done
+          [ "$OUT_FILE_COUNT" = "2" ] \
+            || { echo "❌ unexpected file_count"; exit 1; }
+
+      - name: Decompress
+        uses: somaz94/compress-decompress@5fe50ed1861676e1ea9c6cff48eff02d44a5471a # v1
+        with:
+          command: 'decompress'
+          source: ${{ steps.archive.outputs.path }}
+          format: ${{ matrix.format }}
+          dest: './extracted'
+          verify_checksum: ${{ steps.compress.outputs.checksum }}
+
+      - name: Verify Extraction
+        env:
+          MATRIX_INCLUDE_ROOT: ${{ matrix.include_root }}
+        run: |
+          if [ "$MATRIX_INCLUDE_ROOT" = "true" ]; then
+            EXPECTED="./extracted/testdir/file.txt"
+          else
+            EXPECTED="./extracted/file.txt"
+          fi
+
+          if [ -f "$EXPECTED" ]; then
+            echo "✅ Decompression verified: $EXPECTED"
+          else
+            echo "❌ Expected file not found: $EXPECTED"
+            echo "Actual contents:"
+            find ./extracted -type f | sort
+            exit 1
+          fi

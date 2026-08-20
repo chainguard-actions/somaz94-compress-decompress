@@ -1,0 +1,82 @@
+name: Test compress with file exclusion
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files including ones to exclude
+        run: |
+          mkdir -p excl-source
+          echo "Keep this file" > excl-source/keep.txt
+          echo "Also keep this" > excl-source/keep2.txt
+          echo "Exclude this file" > excl-source/exclude-me.log
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./excl-source
+          dest: ./excl-dest
+          destfilename: filtered
+          format: zip
+          exclude: "*.log"
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive file exists on host
+        run: |
+          ls -la excl-dest/ || true
+          if [ ! -f "excl-dest/filtered.zip" ]; then
+            echo "FAIL: archive not found"
+            exit 1
+          fi
+          echo "PASS: archive with exclusions created"
+
+      - name: Assert file_count reflects exclusion
+        env:
+          FILE_COUNT: ${{ steps.compress.outputs.file_count }}
+        run: |
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_COUNT" ]; then
+            echo "FAIL: file_count output is empty"
+            exit 1
+          fi
+          echo "PASS: file_count=$FILE_COUNT"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress.outputs.file_path }}
+          dest: ./excl-extract
+          format: zip
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert excluded file is not in archive
+        run: |
+          echo "Contents of extract dir:"
+          find excl-extract -type f | sort
+          if find excl-extract -name "exclude-me.log" | grep -q .; then
+            echo "FAIL: excluded file found in archive"
+            exit 1
+          fi
+          if ! find excl-extract -name "keep.txt" | grep -q .; then
+            echo "FAIL: keep.txt not found in archive"
+            exit 1
+          fi
+          echo "PASS: exclusion worked correctly"

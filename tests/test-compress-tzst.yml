@@ -1,0 +1,93 @@
+name: Test compress tzst format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p tzst-source
+          echo "Zstandard compressed content" > tzst-source/data.txt
+          echo "More zstd data" > tzst-source/extra.txt
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./tzst-source
+          dest: ./tzst-dest
+          destfilename: archive
+          format: tzst
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive file exists on host
+        run: |
+          ls -la tzst-dest/ || true
+          if [ ! -f "tzst-dest/archive.tzst" ]; then
+            echo "FAIL: archive not found"
+            exit 1
+          fi
+          echo "PASS: tzst archive created"
+
+      - name: Assert checksum output
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          echo "PASS: checksum=$CHECKSUM"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress.outputs.file_path }}
+          dest: ./tzst-extract
+          format: tzst
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert decompress succeeded
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: decompress file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: tzst decompression succeeded"
+
+      - name: Assert extracted files exist
+        run: |
+          echo "Contents of extract dir:"
+          find tzst-extract -type f | sort
+          if ! find tzst-extract -name "data.txt" | grep -q .; then
+            echo "FAIL: data.txt not found in extracted output"
+            exit 1
+          fi
+          CONTENT=$(find tzst-extract -name "data.txt" -exec cat {} \;)
+          echo "Content: $CONTENT"
+          if [ "$CONTENT" != "Zstandard compressed content" ]; then
+            echo "FAIL: file content mismatch"
+            exit 1
+          fi
+          echo "PASS: tzst round-trip verified"

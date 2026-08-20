@@ -1,0 +1,106 @@
+name: Test compress tgz format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p tgz-source
+          echo "File one content" > tgz-source/one.txt
+          echo "File two content" > tgz-source/two.txt
+          echo "File three content" > tgz-source/three.txt
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./tgz-source
+          dest: ./tgz-dest
+          destfilename: archive
+          format: tgz
+          compression_level: "6"
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive file exists on host
+        run: |
+          ls -la tgz-dest/ || true
+          if [ ! -f "tgz-dest/archive.tgz" ]; then
+            echo "FAIL: archive not found"
+            exit 1
+          fi
+          echo "PASS: archive exists"
+
+      - name: Assert checksum output
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          # SHA256 checksums are 64 hex characters
+          if ! echo "$CHECKSUM" | grep -qE '^[0-9a-f]{64}$'; then
+            echo "FAIL: checksum does not look like a SHA256 hash: $CHECKSUM"
+            exit 1
+          fi
+          echo "PASS: checksum looks valid"
+
+      - name: Assert compression_ratio output
+        env:
+          RATIO: ${{ steps.compress.outputs.compression_ratio }}
+        run: |
+          echo "compression_ratio: $RATIO"
+          if [ -z "$RATIO" ]; then
+            echo "FAIL: compression_ratio output is empty"
+            exit 1
+          fi
+          echo "PASS: compression_ratio=$RATIO"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress.outputs.file_path }}
+          dest: ./tgz-extract
+          format: tgz
+          verify_checksum: ${{ steps.compress.outputs.checksum }}
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert decompress succeeded with checksum verification
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: decompress file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: decompression with checksum verification succeeded"
+
+      - name: Assert extracted files exist
+        run: |
+          echo "Contents of extract dir:"
+          find tgz-extract -type f | sort
+          if ! find tgz-extract -name "one.txt" | grep -q .; then
+            echo "FAIL: one.txt not found in extracted output"
+            exit 1
+          fi
+          echo "PASS: extracted files verified"

@@ -1,0 +1,98 @@
+name: Test compress with glob pattern
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files with nested structure
+        run: |
+          mkdir -p glob-source/subdir1
+          mkdir -p glob-source/subdir2
+          echo "Doc one" > glob-source/subdir1/doc1.txt
+          echo "Doc two" > glob-source/subdir2/doc2.txt
+          echo "Not a doc" > glob-source/other.log
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./glob-source/**/*.txt
+          dest: ./glob-dest
+          destfilename: docs
+          format: zip
+          preserveGlobStructure: "true"
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive file exists on host
+        run: |
+          ls -la glob-dest/ || true
+          if [ ! -f "glob-dest/docs.zip" ]; then
+            echo "FAIL: archive not found"
+            exit 1
+          fi
+          echo "PASS: glob archive created"
+
+      - name: Assert file_count output (should have 2 txt files)
+        env:
+          FILE_COUNT: ${{ steps.compress.outputs.file_count }}
+        run: |
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_COUNT" ]; then
+            echo "FAIL: file_count output is empty"
+            exit 1
+          fi
+          if [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: expected at least 1 file, got $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: file_count=$FILE_COUNT"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress.outputs.file_path }}
+          dest: ./glob-extract
+          format: zip
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert decompress succeeded
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: decompress file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: glob archive decompressed"
+
+      - name: Assert txt files were extracted (not the log file)
+        run: |
+          echo "Contents of extract dir:"
+          find glob-extract -type f | sort
+          if ! find glob-extract -name "doc1.txt" | grep -q .; then
+            echo "FAIL: doc1.txt not found in extracted output"
+            exit 1
+          fi
+          if ! find glob-extract -name "doc2.txt" | grep -q .; then
+            echo "FAIL: doc2.txt not found in extracted output"
+            exit 1
+          fi
+          echo "PASS: glob-matched files extracted correctly"

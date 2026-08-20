@@ -1,0 +1,93 @@
+name: Test compress and decompress tar format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files to compress
+        run: |
+          mkdir -p tar-source
+          echo "Hello from tar test" > tar-source/hello.txt
+          echo "Another file" > tar-source/world.txt
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./tar-source
+          dest: ./tar-dest
+          destfilename: archive
+          format: tar
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert compress file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive file exists on host
+        run: |
+          ls -la tar-dest/ || true
+          if [ ! -f "tar-dest/archive.tar" ]; then
+            echo "FAIL: archive file not found"
+            exit 1
+          fi
+          echo "PASS: archive exists"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress.outputs.file_path }}
+          dest: ./tar-extract
+          format: tar
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert decompress file_path output
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: decompress file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert extracted files exist
+        run: |
+          echo "Contents of extract dir:"
+          find tar-extract -type f | sort
+          if ! find tar-extract -name "hello.txt" | grep -q .; then
+            echo "FAIL: hello.txt not found in extracted output"
+            exit 1
+          fi
+          CONTENT=$(find tar-extract -name "hello.txt" -exec cat {} \;)
+          echo "Content: $CONTENT"
+          if [ "$CONTENT" != "Hello from tar test" ]; then
+            echo "FAIL: file content mismatch"
+            exit 1
+          fi
+          echo "PASS: extracted files verified"
+
+      - name: Assert decompress file_count output
+        env:
+          FILE_COUNT: ${{ steps.decompress.outputs.file_count }}
+        run: |
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_COUNT" ]; then
+            echo "FAIL: file_count output is empty"
+            exit 1
+          fi
+          echo "PASS: file_count=$FILE_COUNT"
