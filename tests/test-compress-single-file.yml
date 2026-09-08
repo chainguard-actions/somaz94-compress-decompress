@@ -1,0 +1,81 @@
+name: Test compress single file
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create a single source file
+        run: |
+          echo "Single file content for compression test" > "$GITHUB_WORKSPACE/single-file.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./single-file.txt
+          dest: ./single-output
+          destfilename: single
+          format: zip
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert archive file exists
+        run: |
+          echo "Checking for archive at $GITHUB_WORKSPACE/single-output/single.zip"
+          if [ ! -f "$GITHUB_WORKSPACE/single-output/single.zip" ]; then
+            echo "FAIL: archive file does not exist"
+            ls -la "$GITHUB_WORKSPACE/single-output/" 2>/dev/null || echo "Output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: single file archive created"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert file_count is at least 1
+        env:
+          FILE_COUNT: ${{ steps.compress.outputs.file_count }}
+        run: |
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_COUNT" ]; then
+            echo "FAIL: file_count is empty"
+            exit 1
+          fi
+          if [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: file_count should be at least 1, got $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: file_count=$FILE_COUNT"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ./single-output/single.zip
+          dest: ./single-extracted
+          format: zip
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert single file extracted
+        run: |
+          echo "Contents of single-extracted:"
+          find "$GITHUB_WORKSPACE/single-extracted" -type f | sort
+          COUNT=$(find "$GITHUB_WORKSPACE/single-extracted" -type f | wc -l)
+          echo "Found $COUNT files"
+          if [ "$COUNT" -lt 1 ]; then
+            echo "FAIL: no files extracted"
+            exit 1
+          fi
+          echo "PASS: single file extracted successfully"

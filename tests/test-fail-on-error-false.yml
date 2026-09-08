@@ -1,0 +1,35 @@
+name: Test fail_on_error false option
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: compress-missing
+        uses: .
+        with:
+          command: compress
+          source: ./nonexistent-source-dir-xyz-abc
+          dest: ./fail-output
+          destfilename: archive
+          format: zip
+          fail_on_error: "false"
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert action did not fail despite missing source
+        env:
+          OUTCOME: ${{ steps.compress-missing.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded (did not fail) with fail_on_error=false"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "FAIL: action failed even though fail_on_error=false"
+            exit 1
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

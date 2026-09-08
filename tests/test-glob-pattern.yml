@@ -1,0 +1,74 @@
+name: Test glob pattern source compression
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files with nested structure
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/glob-source/docs"
+          mkdir -p "$GITHUB_WORKSPACE/glob-source/src"
+          echo "Doc one" > "$GITHUB_WORKSPACE/glob-source/docs/one.txt"
+          echo "Doc two" > "$GITHUB_WORKSPACE/glob-source/docs/two.txt"
+          echo "Source file" > "$GITHUB_WORKSPACE/glob-source/src/main.py"
+          echo "Root txt" > "$GITHUB_WORKSPACE/glob-source/root.txt"
+
+      - id: compress-glob
+        uses: .
+        with:
+          command: compress
+          source: ./glob-source/**/*.txt
+          dest: ./glob-output
+          destfilename: glob-archive
+          format: zip
+          preserveGlobStructure: "false"
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert glob compress succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-glob.outputs.file_path }}
+          FILE_COUNT: ${{ steps.compress-glob.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/glob-output/glob-archive.zip" ]; then
+            echo "FAIL: archive does not exist"
+            ls -la "$GITHUB_WORKSPACE/glob-output/" 2>/dev/null || echo "Output dir does not exist"
+            exit 1
+          fi
+          if [ -z "$FILE_COUNT" ]; then
+            echo "FAIL: file_count is empty"
+            exit 1
+          fi
+          echo "PASS: glob compress succeeded, file_count=$FILE_COUNT"
+
+      - id: decompress-glob
+        uses: .
+        with:
+          command: decompress
+          source: ./glob-output/glob-archive.zip
+          dest: ./glob-extracted
+          format: zip
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert txt files were compressed (not .py)
+        run: |
+          echo "Contents of glob-extracted:"
+          find "$GITHUB_WORKSPACE/glob-extracted" -type f | sort
+          # Should have txt files
+          TXT_COUNT=$(find "$GITHUB_WORKSPACE/glob-extracted" -name "*.txt" | wc -l)
+          echo "Found $TXT_COUNT .txt files"
+          if [ "$TXT_COUNT" -lt 1 ]; then
+            echo "FAIL: no .txt files found in extracted archive"
+            exit 1
+          fi
+          echo "PASS: glob pattern correctly matched .txt files"

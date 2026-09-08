@@ -1,0 +1,96 @@
+name: Test compress and decompress round-trip (tgz)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/roundtrip-source/subdir"
+          echo "File one content" > "$GITHUB_WORKSPACE/roundtrip-source/file1.txt"
+          echo "File two content" > "$GITHUB_WORKSPACE/roundtrip-source/file2.txt"
+          echo "Nested file" > "$GITHUB_WORKSPACE/roundtrip-source/subdir/nested.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./roundtrip-source
+          dest: ./roundtrip-output
+          destfilename: myarchive
+          format: tgz
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert compress succeeded - archive exists
+        run: |
+          echo "Checking for archive at $GITHUB_WORKSPACE/roundtrip-output/myarchive.tgz"
+          if [ ! -f "$GITHUB_WORKSPACE/roundtrip-output/myarchive.tgz" ]; then
+            echo "FAIL: archive does not exist"
+            ls -la "$GITHUB_WORKSPACE/roundtrip-output/" 2>/dev/null || echo "Output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: archive exists"
+
+      - name: Assert compress outputs
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "checksum: $CHECKSUM"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum is empty"
+            exit 1
+          fi
+          echo "PASS: compress outputs are set"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ./roundtrip-output/myarchive.tgz
+          dest: ./roundtrip-extracted
+          format: tgz
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert decompress succeeded
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+          FILE_COUNT: ${{ steps.decompress.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: decompress file_path is empty"
+            exit 1
+          fi
+          if [ -z "$FILE_COUNT" ]; then
+            echo "FAIL: file_count is empty"
+            exit 1
+          fi
+          if [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: file_count should be at least 1, got $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: decompress succeeded, file_count=$FILE_COUNT"
+
+      - name: Assert extracted files exist
+        run: |
+          echo "Contents of roundtrip-extracted:"
+          find "$GITHUB_WORKSPACE/roundtrip-extracted" -type f | sort
+          COUNT=$(find "$GITHUB_WORKSPACE/roundtrip-extracted" -type f | wc -l)
+          echo "Found $COUNT files"
+          if [ "$COUNT" -lt 1 ]; then
+            echo "FAIL: no files extracted"
+            exit 1
+          fi
+          echo "PASS: files extracted successfully"

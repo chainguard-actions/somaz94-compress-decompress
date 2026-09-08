@@ -1,0 +1,54 @@
+name: Test dedupeExtension prevents double extension
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/dedupe-source"
+          echo "Dedupe test" > "$GITHUB_WORKSPACE/dedupe-source/test.txt"
+
+      - id: compress-dedupe
+        uses: .
+        with:
+          command: compress
+          source: ./dedupe-source
+          dest: ./dedupe-output
+          destfilename: archive.zip
+          format: zip
+          dedupeExtension: "true"
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert no double extension (archive.zip not archive.zip.zip)
+        env:
+          FILE_PATH: ${{ steps.compress-dedupe.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          # Check that archive.zip exists (not archive.zip.zip)
+          if [ ! -f "$GITHUB_WORKSPACE/dedupe-output/archive.zip" ]; then
+            echo "FAIL: archive.zip does not exist"
+            ls -la "$GITHUB_WORKSPACE/dedupe-output/" 2>/dev/null || echo "Output dir does not exist"
+            exit 1
+          fi
+          # Check that double extension does NOT exist
+          if [ -f "$GITHUB_WORKSPACE/dedupe-output/archive.zip.zip" ]; then
+            echo "FAIL: double extension detected: archive.zip.zip exists"
+            exit 1
+          fi
+          # Check the file_path basename
+          BASENAME=$(basename "$FILE_PATH")
+          echo "basename: $BASENAME"
+          if echo "$BASENAME" | grep -q "\.zip\.zip$"; then
+            echo "FAIL: double extension detected in file_path: $BASENAME"
+            exit 1
+          fi
+          echo "PASS: no double extension, filename=$BASENAME"

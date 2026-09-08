@@ -1,0 +1,72 @@
+name: Test compress tzst (zstandard) format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tzst-source"
+          echo "zstandard test content" > "$GITHUB_WORKSPACE/tzst-source/test.txt"
+          echo "another file" > "$GITHUB_WORKSPACE/tzst-source/other.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./tzst-source
+          dest: ./tzst-output
+          destfilename: archive
+          format: tzst
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert archive file exists
+        run: |
+          echo "Checking for archive at $GITHUB_WORKSPACE/tzst-output/archive.tzst"
+          if [ ! -f "$GITHUB_WORKSPACE/tzst-output/archive.tzst" ]; then
+            echo "FAIL: archive file does not exist"
+            ls -la "$GITHUB_WORKSPACE/tzst-output/" 2>/dev/null || echo "Output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: tzst archive created"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ./tzst-output/archive.tzst
+          dest: ./tzst-extracted
+          format: tzst
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert decompress succeeded
+        env:
+          FILE_COUNT: ${{ steps.decompress.outputs.file_count }}
+          DURATION: ${{ steps.decompress.outputs.duration }}
+        run: |
+          echo "file_count: $FILE_COUNT"
+          echo "duration: $DURATION"
+          if [ -z "$FILE_COUNT" ]; then
+            echo "FAIL: file_count is empty"
+            exit 1
+          fi
+          if [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: file_count should be at least 1, got $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: tzst decompress succeeded, file_count=$FILE_COUNT"
+
+      - name: Assert extracted files exist
+        run: |
+          COUNT=$(find "$GITHUB_WORKSPACE/tzst-extracted" -type f 2>/dev/null | wc -l)
+          echo "Found $COUNT files in tzst-extracted"
+          if [ "$COUNT" -lt 1 ]; then
+            echo "FAIL: no files extracted"
+            exit 1
+          fi
+          echo "PASS: files extracted successfully"

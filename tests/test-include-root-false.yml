@@ -1,0 +1,76 @@
+name: Test includeRoot false option
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/noroot-source"
+          echo "File without root" > "$GITHUB_WORKSPACE/noroot-source/file.txt"
+          echo "Another file" > "$GITHUB_WORKSPACE/noroot-source/another.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./noroot-source
+          dest: ./noroot-output
+          destfilename: archive
+          format: zip
+          includeRoot: "false"
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert compress without root succeeded
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+          FILE_COUNT: ${{ steps.compress.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/noroot-output/archive.zip" ]; then
+            echo "FAIL: archive does not exist"
+            ls -la "$GITHUB_WORKSPACE/noroot-output/" 2>/dev/null || echo "Output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: compress without root succeeded"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ./noroot-output/archive.zip
+          dest: ./noroot-extracted
+          format: zip
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert files extracted correctly (no root dir)
+        env:
+          FILE_COUNT: ${{ steps.decompress.outputs.file_count }}
+        run: |
+          echo "file_count: $FILE_COUNT"
+          echo "Contents of noroot-extracted:"
+          find "$GITHUB_WORKSPACE/noroot-extracted" -type f | sort
+          COUNT=$(find "$GITHUB_WORKSPACE/noroot-extracted" -type f | wc -l)
+          echo "Found $COUNT files"
+          if [ "$COUNT" -lt 1 ]; then
+            echo "FAIL: no files extracted"
+            exit 1
+          fi
+          # With includeRoot=false, files should be at the root of the extracted dir
+          # not inside a 'noroot-source' subdirectory
+          if find "$GITHUB_WORKSPACE/noroot-extracted" -name "file.txt" | grep -q .; then
+            echo "PASS: files extracted without root directory"
+          else
+            echo "FAIL: file.txt not found in extracted directory"
+            exit 1
+          fi

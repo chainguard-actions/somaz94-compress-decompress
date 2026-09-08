@@ -1,0 +1,68 @@
+name: Test compress tar format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tar-source"
+          echo "Content A" > "$GITHUB_WORKSPACE/tar-source/a.txt"
+          echo "Content B" > "$GITHUB_WORKSPACE/tar-source/b.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./tar-source
+          dest: ./tar-output
+          destfilename: tarball
+          format: tar
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert archive file exists
+        run: |
+          echo "Checking for archive at $GITHUB_WORKSPACE/tar-output/tarball.tar"
+          if [ ! -f "$GITHUB_WORKSPACE/tar-output/tarball.tar" ]; then
+            echo "FAIL: archive file does not exist"
+            ls -la "$GITHUB_WORKSPACE/tar-output/" 2>/dev/null || echo "Output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: tar archive created"
+
+      - name: Assert file_path output is set
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert original_size output is set
+        env:
+          ORIGINAL_SIZE: ${{ steps.compress.outputs.original_size }}
+        run: |
+          echo "original_size: $ORIGINAL_SIZE"
+          if [ -z "$ORIGINAL_SIZE" ]; then
+            echo "FAIL: original_size output is empty"
+            exit 1
+          fi
+          echo "PASS: original_size=$ORIGINAL_SIZE"
+
+      - name: Assert compression_ratio output is set
+        env:
+          COMPRESSION_RATIO: ${{ steps.compress.outputs.compression_ratio }}
+        run: |
+          echo "compression_ratio: $COMPRESSION_RATIO"
+          if [ -z "$COMPRESSION_RATIO" ]; then
+            echo "FAIL: compression_ratio output is empty"
+            exit 1
+          fi
+          echo "PASS: compression_ratio=$COMPRESSION_RATIO"

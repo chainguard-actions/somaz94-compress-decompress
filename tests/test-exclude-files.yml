@@ -1,0 +1,69 @@
+name: Test exclude files from compression
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/exclude-source"
+          echo "Include this" > "$GITHUB_WORKSPACE/exclude-source/include.txt"
+          echo "Exclude this" > "$GITHUB_WORKSPACE/exclude-source/exclude.log"
+          echo "Also include" > "$GITHUB_WORKSPACE/exclude-source/also-include.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./exclude-source
+          dest: ./exclude-output
+          destfilename: archive
+          format: zip
+          exclude: "*.log"
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert compress with exclude succeeded
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+          FILE_COUNT: ${{ steps.compress.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/exclude-output/archive.zip" ]; then
+            echo "FAIL: archive does not exist"
+            ls -la "$GITHUB_WORKSPACE/exclude-output/" 2>/dev/null || echo "Output dir does not exist"
+            exit 1
+          fi
+          echo "PASS: compress with exclude succeeded, file_count=$FILE_COUNT"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ./exclude-output/archive.zip
+          dest: ./exclude-extracted
+          format: zip
+          verbose: "true"
+          step_summary: "false"
+
+      - name: Assert excluded file is not in archive
+        run: |
+          echo "Contents of exclude-extracted:"
+          find "$GITHUB_WORKSPACE/exclude-extracted" -type f | sort
+          if find "$GITHUB_WORKSPACE/exclude-extracted" -name "*.log" | grep -q .; then
+            echo "FAIL: excluded .log file was found in archive"
+            exit 1
+          fi
+          if ! find "$GITHUB_WORKSPACE/exclude-extracted" -name "include.txt" | grep -q .; then
+            echo "FAIL: include.txt was not found in archive"
+            exit 1
+          fi
+          echo "PASS: excluded file not present, included files present"
