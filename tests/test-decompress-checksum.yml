@@ -1,0 +1,75 @@
+name: Test decompress with checksum verification
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-src"
+          echo "checksum test content" > "$GITHUB_WORKSPACE/test-src/data.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-src
+          dest: test-out
+          destfilename: checksummed
+          format: tgz
+          verbose: "true"
+
+      - name: Capture checksum for verification
+        id: capture
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          echo "file_path: $FILE_PATH"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum is empty after compression"
+            exit 1
+          fi
+          echo "checksum=$CHECKSUM" >> "$GITHUB_OUTPUT"
+          echo "file_path=$FILE_PATH" >> "$GITHUB_OUTPUT"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: test-out/checksummed.tgz
+          dest: test-decompressed
+          format: tgz
+          verify_checksum: ${{ steps.capture.outputs.checksum }}
+          verbose: "true"
+
+      - name: Assert decompress succeeded with correct checksum
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+          FILE_COUNT: ${{ steps.decompress.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty after decompression"
+            exit 1
+          fi
+          if [ -z "$FILE_COUNT" ] || [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: file_count should be >= 1, got: $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: decompression with checksum verification succeeded"
+
+      - name: Assert decompressed files exist
+        run: |
+          COUNT=$(find "$GITHUB_WORKSPACE/test-decompressed" -name "*.txt" | wc -l)
+          echo "Found $COUNT .txt files"
+          if [ "$COUNT" -lt 1 ]; then
+            echo "FAIL: expected at least 1 .txt file in decompressed output"
+            exit 1
+          fi
+          echo "PASS: decompressed files found"

@@ -1,0 +1,70 @@
+name: Test compress glob pattern
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files with nested structure
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-src/subdir"
+          echo "doc one" > "$GITHUB_WORKSPACE/test-src/file1.txt"
+          echo "doc two" > "$GITHUB_WORKSPACE/test-src/file2.txt"
+          echo "nested doc" > "$GITHUB_WORKSPACE/test-src/subdir/file3.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: "test-src/**/*.txt"
+          dest: test-out
+          destfilename: glob-archive
+          format: zip
+          preserveGlobStructure: "true"
+          verbose: "true"
+
+      - name: Assert file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive exists on disk
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "Checking: $FILE_PATH"
+          if [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: archive not found at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: archive exists"
+
+      - name: Assert file_count output
+        env:
+          FILE_COUNT: ${{ steps.compress.outputs.file_count }}
+        run: |
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_COUNT" ] || [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: file_count should be >= 1, got: $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: file_count=$FILE_COUNT"
+
+      - name: Assert checksum output
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          echo "PASS: checksum=$CHECKSUM"

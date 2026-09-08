@@ -1,0 +1,87 @@
+name: Test compress tgz
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-src"
+          echo "hello world" > "$GITHUB_WORKSPACE/test-src/hello.txt"
+          echo "another file" > "$GITHUB_WORKSPACE/test-src/another.txt"
+          echo "third file" > "$GITHUB_WORKSPACE/test-src/third.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-src
+          dest: test-out
+          destfilename: archive
+          format: tgz
+          verbose: "true"
+
+      - name: Assert file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive exists on disk
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "Checking: $FILE_PATH"
+          if [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: archive not found at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: archive exists"
+
+      - name: Assert checksum output
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          # SHA256 should be 64 hex chars
+          LEN=${#CHECKSUM}
+          echo "checksum length: $LEN"
+          if [ "$LEN" -ne 64 ]; then
+            echo "FAIL: expected 64-char SHA256, got length $LEN"
+            exit 1
+          fi
+          echo "PASS: checksum=$CHECKSUM"
+
+      - name: Assert compression_ratio output
+        env:
+          RATIO: ${{ steps.compress.outputs.compression_ratio }}
+        run: |
+          echo "compression_ratio: $RATIO"
+          if [ -z "$RATIO" ]; then
+            echo "FAIL: compression_ratio output is empty"
+            exit 1
+          fi
+          echo "PASS: compression_ratio=$RATIO"
+
+      - name: Assert original_size output
+        env:
+          ORIGINAL_SIZE: ${{ steps.compress.outputs.original_size }}
+        run: |
+          echo "original_size: $ORIGINAL_SIZE"
+          if [ -z "$ORIGINAL_SIZE" ] || [ "$ORIGINAL_SIZE" -lt 1 ]; then
+            echo "FAIL: original_size should be >= 1, got: $ORIGINAL_SIZE"
+            exit 1
+          fi
+          echo "PASS: original_size=$ORIGINAL_SIZE"

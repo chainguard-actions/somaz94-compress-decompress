@@ -1,0 +1,137 @@
+name: Test compress multiple formats
+on:
+  workflow_dispatch:
+jobs:
+  test-tbz2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-src"
+          echo "bzip2 test content" > "$GITHUB_WORKSPACE/test-src/data.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-src
+          dest: test-out
+          destfilename: archive
+          format: tbz2
+          verbose: "true"
+
+      - name: Assert file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive exists on disk
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          if [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: archive not found at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: tbz2 archive exists"
+
+      - name: Assert checksum output
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          echo "PASS: checksum=$CHECKSUM"
+
+  test-txz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-src"
+          echo "xz test content" > "$GITHUB_WORKSPACE/test-src/data.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-src
+          dest: test-out
+          destfilename: archive
+          format: txz
+          verbose: "true"
+
+      - name: Assert file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive exists on disk
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          if [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: archive not found at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: txz archive exists"
+
+  test-tzst:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-src"
+          echo "zstd test content" > "$GITHUB_WORKSPACE/test-src/data.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-src
+          dest: test-out
+          destfilename: archive
+          format: tzst
+          verbose: "true"
+
+      - name: Assert file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive exists on disk
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          if [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: archive not found at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: tzst archive exists"

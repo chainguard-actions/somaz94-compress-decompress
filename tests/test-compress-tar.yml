@@ -1,0 +1,98 @@
+name: Test compress tar format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-src"
+          echo "tar test content" > "$GITHUB_WORKSPACE/test-src/data.txt"
+          echo "more tar content" > "$GITHUB_WORKSPACE/test-src/more.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: test-src
+          dest: test-out
+          destfilename: archive
+          format: tar
+          verbose: "true"
+
+      - name: Assert file_path output
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert archive exists on disk
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "Checking: $FILE_PATH"
+          if [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: archive not found at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: tar archive exists"
+
+      - name: Assert checksum output
+        env:
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "checksum: $CHECKSUM"
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum output is empty"
+            exit 1
+          fi
+          echo "PASS: checksum=$CHECKSUM"
+
+      - name: Assert file_count output
+        env:
+          FILE_COUNT: ${{ steps.compress.outputs.file_count }}
+        run: |
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_COUNT" ] || [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: file_count should be >= 1, got: $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: file_count=$FILE_COUNT"
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: test-out/archive.tar
+          dest: test-decompressed
+          format: tar
+          verbose: "true"
+
+      - name: Assert decompressed file_path output
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: decompress file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert decompressed files exist
+        run: |
+          COUNT=$(find "$GITHUB_WORKSPACE/test-decompressed" -name "*.txt" | wc -l)
+          echo "Found $COUNT .txt files"
+          if [ "$COUNT" -lt 1 ]; then
+            echo "FAIL: expected at least 1 .txt file in decompressed output"
+            exit 1
+          fi
+          echo "PASS: decompressed files found"

@@ -1,0 +1,74 @@
+name: Test decompress zip
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files and compress them first
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-src"
+          echo "hello world" > "$GITHUB_WORKSPACE/test-src/hello.txt"
+          echo "another file" > "$GITHUB_WORKSPACE/test-src/another.txt"
+          mkdir -p "$GITHUB_WORKSPACE/test-compressed"
+          cd "$GITHUB_WORKSPACE"
+          zip -r "$GITHUB_WORKSPACE/test-compressed/archive.zip" test-src/
+
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: test-compressed/archive.zip
+          dest: test-decompressed
+          format: zip
+          verbose: "true"
+
+      - name: Assert file_path output
+        env:
+          FILE_PATH: ${{ steps.decompress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path output is empty"
+            exit 1
+          fi
+          echo "PASS: file_path=$FILE_PATH"
+
+      - name: Assert file_count output
+        env:
+          FILE_COUNT: ${{ steps.decompress.outputs.file_count }}
+        run: |
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_COUNT" ] || [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: file_count should be >= 1, got: $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: file_count=$FILE_COUNT"
+
+      - name: Assert decompressed files exist
+        run: |
+          if [ ! -d "$GITHUB_WORKSPACE/test-decompressed" ]; then
+            echo "FAIL: decompressed directory not found"
+            exit 1
+          fi
+          # Find any .txt file in the decompressed output
+          COUNT=$(find "$GITHUB_WORKSPACE/test-decompressed" -name "*.txt" | wc -l)
+          echo "Found $COUNT .txt files"
+          if [ "$COUNT" -lt 1 ]; then
+            echo "FAIL: expected at least 1 .txt file in decompressed output"
+            exit 1
+          fi
+          echo "PASS: decompressed files found"
+
+      - name: Assert duration output
+        env:
+          DURATION: ${{ steps.decompress.outputs.duration }}
+        run: |
+          echo "duration: $DURATION"
+          if [ -z "$DURATION" ]; then
+            echo "FAIL: duration output is empty"
+            exit 1
+          fi
+          echo "PASS: duration=$DURATION"
