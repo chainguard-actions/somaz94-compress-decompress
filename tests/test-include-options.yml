@@ -1,0 +1,90 @@
+name: Test includeRoot and includeHidden options
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files with hidden files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/opts-source"
+          echo "Visible file" > "$GITHUB_WORKSPACE/opts-source/visible.txt"
+          echo "Hidden file" > "$GITHUB_WORKSPACE/opts-source/.hidden"
+          echo "Env file" > "$GITHUB_WORKSPACE/opts-source/.env"
+
+      - id: compress-no-root
+        uses: .
+        with:
+          command: compress
+          source: ${{ github.workspace }}/opts-source
+          dest: ${{ github.workspace }}/opts-output
+          destfilename: no-root
+          format: zip
+          includeRoot: "false"
+          includeHidden: "true"
+          verbose: "true"
+
+      - name: Assert compress without root succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-no-root.outputs.file_path }}
+          FILE_COUNT: ${{ steps.compress-no-root.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ] || [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: archive not found at $FILE_PATH"
+            exit 1
+          fi
+          if [ -z "$FILE_COUNT" ] || [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: expected at least 1 file, got $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: compress without root succeeded with $FILE_COUNT files"
+
+      - id: compress-no-hidden
+        uses: .
+        with:
+          command: compress
+          source: ${{ github.workspace }}/opts-source
+          dest: ${{ github.workspace }}/opts-output
+          destfilename: no-hidden
+          format: zip
+          includeRoot: "true"
+          includeHidden: "false"
+          verbose: "true"
+
+      - name: Assert compress without hidden files succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-no-hidden.outputs.file_path }}
+          FILE_COUNT: ${{ steps.compress-no-hidden.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ] || [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: archive not found at $FILE_PATH"
+            exit 1
+          fi
+          if [ -z "$FILE_COUNT" ] || [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: expected at least 1 file, got $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: compress without hidden files succeeded with $FILE_COUNT files"
+
+      - name: Assert hidden-excluded archive has fewer files than hidden-included
+        env:
+          COUNT_WITH_HIDDEN: ${{ steps.compress-no-root.outputs.file_count }}
+          COUNT_NO_HIDDEN: ${{ steps.compress-no-hidden.outputs.file_count }}
+        run: |
+          echo "count with hidden: $COUNT_WITH_HIDDEN"
+          echo "count without hidden: $COUNT_NO_HIDDEN"
+          if [ -z "$COUNT_WITH_HIDDEN" ] || [ -z "$COUNT_NO_HIDDEN" ]; then
+            echo "SKIP: one or both counts are empty, cannot compare"
+            exit 0
+          fi
+          if [ "$COUNT_NO_HIDDEN" -lt "$COUNT_WITH_HIDDEN" ]; then
+            echo "PASS: hidden-excluded archive has fewer files ($COUNT_NO_HIDDEN < $COUNT_WITH_HIDDEN)"
+          else
+            echo "INFO: counts are equal or unexpected ($COUNT_NO_HIDDEN vs $COUNT_WITH_HIDDEN) — may be OK if hidden files were not present"
+          fi

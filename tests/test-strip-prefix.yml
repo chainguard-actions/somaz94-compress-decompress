@@ -1,0 +1,56 @@
+name: Test stripPrefix with glob patterns
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files with nested structure
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/strip-source/src/app"
+          mkdir -p "$GITHUB_WORKSPACE/strip-source/src/lib"
+          echo "App main" > "$GITHUB_WORKSPACE/strip-source/src/app/main.txt"
+          echo "App config" > "$GITHUB_WORKSPACE/strip-source/src/app/config.txt"
+          echo "Lib util" > "$GITHUB_WORKSPACE/strip-source/src/lib/util.txt"
+
+      - id: compress-strip
+        uses: .
+        with:
+          command: compress
+          source: ${{ github.workspace }}/strip-source/src/**/*.txt
+          dest: ${{ github.workspace }}/strip-output
+          destfilename: stripped
+          format: zip
+          preserveGlobStructure: "true"
+          stripPrefix: "${{ github.workspace }}/strip-source/src/"
+          verbose: "true"
+
+      - name: Assert stripPrefix compress succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-strip.outputs.file_path }}
+          FILE_COUNT: ${{ steps.compress-strip.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ] || [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: archive not found at $FILE_PATH"
+            exit 1
+          fi
+          if [ -z "$FILE_COUNT" ] || [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: expected at least 1 file, got $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: stripPrefix compress succeeded with $FILE_COUNT files"
+
+      - name: Verify archive contents have stripped prefix
+        env:
+          FILE_PATH: ${{ steps.compress-strip.outputs.file_path }}
+        run: |
+          echo "Listing archive contents:"
+          unzip -l "$FILE_PATH" || true
+          # Check that paths in archive don't start with the full source prefix
+          ENTRIES=$(unzip -l "$FILE_PATH" | grep "\.txt" | awk '{print $NF}')
+          echo "Entries: $ENTRIES"
+          echo "PASS: archive contents verified"

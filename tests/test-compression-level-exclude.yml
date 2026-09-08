@@ -1,0 +1,82 @@
+name: Test compression level and exclude options
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/lvl-source"
+          echo "Keep this file" > "$GITHUB_WORKSPACE/lvl-source/keep.txt"
+          echo "Exclude this file" > "$GITHUB_WORKSPACE/lvl-source/exclude-me.log"
+          echo "Also keep" > "$GITHUB_WORKSPACE/lvl-source/also-keep.txt"
+          # Create a larger file to make compression ratio meaningful
+          dd if=/dev/urandom bs=1024 count=10 2>/dev/null | base64 > "$GITHUB_WORKSPACE/lvl-source/data.txt"
+
+      - id: compress-level9
+        uses: .
+        with:
+          command: compress
+          source: ${{ github.workspace }}/lvl-source
+          dest: ${{ github.workspace }}/lvl-output
+          destfilename: archive-level9
+          format: tgz
+          compression_level: "9"
+          exclude: "exclude-me.log"
+          verbose: "true"
+
+      - name: Assert high compression succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-level9.outputs.file_path }}
+          COMPRESSION_RATIO: ${{ steps.compress-level9.outputs.compression_ratio }}
+          FILE_COUNT: ${{ steps.compress-level9.outputs.file_count }}
+          ORIGINAL_SIZE: ${{ steps.compress-level9.outputs.original_size }}
+          COMPRESSED_SIZE: ${{ steps.compress-level9.outputs.compressed_size }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "compression_ratio: $COMPRESSION_RATIO"
+          echo "file_count: $FILE_COUNT"
+          echo "original_size: $ORIGINAL_SIZE"
+          echo "compressed_size: $COMPRESSED_SIZE"
+          if [ -z "$FILE_PATH" ] || [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: archive not found at $FILE_PATH"
+            exit 1
+          fi
+          if [ -z "$COMPRESSION_RATIO" ]; then
+            echo "FAIL: compression_ratio is empty"
+            exit 1
+          fi
+          if [ -z "$ORIGINAL_SIZE" ]; then
+            echo "FAIL: original_size is empty"
+            exit 1
+          fi
+          if [ -z "$COMPRESSED_SIZE" ]; then
+            echo "FAIL: compressed_size is empty"
+            exit 1
+          fi
+          echo "PASS: high compression succeeded"
+
+      - id: compress-level0
+        uses: .
+        with:
+          command: compress
+          source: ${{ github.workspace }}/lvl-source
+          dest: ${{ github.workspace }}/lvl-output
+          destfilename: archive-level0
+          format: zip
+          compression_level: "0"
+          verbose: "true"
+
+      - name: Assert store-only (level 0) succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-level0.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ] || [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: store-only archive not found at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: store-only (level 0) succeeded"

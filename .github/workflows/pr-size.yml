@@ -1,0 +1,12 @@
+name: PR Size Labeler
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  size:
+    uses: somaz94/.github/.github/workflows/pr-size-labeler-reusable.yml@4395663967fb07d44defafb52018c667ae383897 # main

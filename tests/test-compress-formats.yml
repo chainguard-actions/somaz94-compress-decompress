@@ -1,0 +1,98 @@
+name: Test multiple compression formats
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/fmt-source"
+          echo "Format test content" > "$GITHUB_WORKSPACE/fmt-source/test.txt"
+          echo "Another file" > "$GITHUB_WORKSPACE/fmt-source/other.txt"
+
+      - id: compress-tar
+        uses: .
+        with:
+          command: compress
+          source: ${{ github.workspace }}/fmt-source
+          dest: ${{ github.workspace }}/fmt-output
+          destfilename: archive-tar
+          format: tar
+          verbose: "true"
+
+      - name: Assert tar archive created
+        env:
+          FILE_PATH: ${{ steps.compress-tar.outputs.file_path }}
+        run: |
+          echo "tar file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ] || [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: tar archive not found at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: tar archive created"
+
+      - id: compress-tbz2
+        uses: .
+        with:
+          command: compress
+          source: ${{ github.workspace }}/fmt-source
+          dest: ${{ github.workspace }}/fmt-output
+          destfilename: archive-tbz2
+          format: tbz2
+          verbose: "true"
+
+      - name: Assert tbz2 archive created
+        env:
+          FILE_PATH: ${{ steps.compress-tbz2.outputs.file_path }}
+        run: |
+          echo "tbz2 file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ] || [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: tbz2 archive not found at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: tbz2 archive created"
+
+      - id: compress-txz
+        uses: .
+        with:
+          command: compress
+          source: ${{ github.workspace }}/fmt-source
+          dest: ${{ github.workspace }}/fmt-output
+          destfilename: archive-txz
+          format: txz
+          verbose: "true"
+
+      - name: Assert txz archive created
+        env:
+          FILE_PATH: ${{ steps.compress-txz.outputs.file_path }}
+        run: |
+          echo "txz file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ] || [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: txz archive not found at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: txz archive created"
+
+      - id: compress-tzst
+        uses: .
+        with:
+          command: compress
+          source: ${{ github.workspace }}/fmt-source
+          dest: ${{ github.workspace }}/fmt-output
+          destfilename: archive-tzst
+          format: tzst
+          verbose: "true"
+
+      - name: Assert tzst archive created
+        env:
+          FILE_PATH: ${{ steps.compress-tzst.outputs.file_path }}
+        run: |
+          echo "tzst file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ] || [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: tzst archive not found at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: tzst archive created"

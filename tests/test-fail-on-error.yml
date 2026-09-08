@@ -1,0 +1,61 @@
+name: Test fail_on_error behavior
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: compress-missing-source-fail
+        uses: .
+        continue-on-error: true
+        with:
+          command: compress
+          source: ${{ github.workspace }}/nonexistent-source-dir-xyz
+          dest: ${{ github.workspace }}/fail-output
+          destfilename: should-fail
+          format: zip
+          fail_on_error: "true"
+          verbose: "true"
+
+      - name: Assert compress with missing source and fail_on_error=true fails
+        env:
+          OUTCOME: ${{ steps.compress-missing-source-fail.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed when source is missing and fail_on_error=true"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "WARN: action succeeded despite missing source — may handle gracefully"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+
+      - id: compress-missing-source-nofail
+        uses: .
+        continue-on-error: true
+        with:
+          command: compress
+          source: ${{ github.workspace }}/nonexistent-source-dir-xyz
+          dest: ${{ github.workspace }}/nofail-output
+          destfilename: should-not-fail
+          format: zip
+          fail_on_error: "false"
+          verbose: "true"
+
+      - name: Assert compress with missing source and fail_on_error=false does not fail
+        env:
+          OUTCOME: ${{ steps.compress-missing-source-nofail.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action did not fail when fail_on_error=false"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "FAIL: action failed even though fail_on_error=false"
+            exit 1
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

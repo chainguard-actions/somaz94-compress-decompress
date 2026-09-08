@@ -1,0 +1,77 @@
+name: Test dedupeExtension behavior
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/dedup-source"
+          echo "Dedup test" > "$GITHUB_WORKSPACE/dedup-source/file.txt"
+
+      - id: compress-dedup-on
+        uses: .
+        with:
+          command: compress
+          source: ${{ github.workspace }}/dedup-source
+          dest: ${{ github.workspace }}/dedup-output
+          destfilename: archive.zip
+          format: zip
+          dedupeExtension: "true"
+          verbose: "true"
+
+      - name: Assert dedupeExtension=true yields archive.zip not archive.zip.zip
+        env:
+          FILE_PATH: ${{ steps.compress-dedup-on.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          BASENAME=$(basename "$FILE_PATH")
+          echo "basename: $BASENAME"
+          if echo "$BASENAME" | grep -q "\.zip\.zip"; then
+            echo "FAIL: dedupeExtension=true still produced double extension: $BASENAME"
+            exit 1
+          fi
+          if [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: archive not found at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: dedupeExtension=true correctly avoided double extension: $BASENAME"
+
+      - id: compress-dedup-off
+        uses: .
+        with:
+          command: compress
+          source: ${{ github.workspace }}/dedup-source
+          dest: ${{ github.workspace }}/dedup-output2
+          destfilename: archive.zip
+          format: zip
+          dedupeExtension: "false"
+          verbose: "true"
+
+      - name: Assert dedupeExtension=false yields archive.zip.zip
+        env:
+          FILE_PATH: ${{ steps.compress-dedup-off.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          BASENAME=$(basename "$FILE_PATH")
+          echo "basename: $BASENAME"
+          if ! echo "$BASENAME" | grep -q "\.zip\.zip"; then
+            echo "FAIL: dedupeExtension=false should produce double extension but got: $BASENAME"
+            exit 1
+          fi
+          if [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: archive not found at $FILE_PATH"
+            exit 1
+          fi
+          echo "PASS: dedupeExtension=false correctly produced double extension: $BASENAME"

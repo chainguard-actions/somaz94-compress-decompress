@@ -1,0 +1,73 @@
+name: Test glob pattern compression
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files with nested structure
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/glob-source/docs"
+          mkdir -p "$GITHUB_WORKSPACE/glob-source/src/app"
+          echo "Doc file 1" > "$GITHUB_WORKSPACE/glob-source/docs/readme.txt"
+          echo "Doc file 2" > "$GITHUB_WORKSPACE/glob-source/docs/guide.txt"
+          echo "Source file" > "$GITHUB_WORKSPACE/glob-source/src/app/main.txt"
+          echo "Root file" > "$GITHUB_WORKSPACE/glob-source/root.txt"
+
+      - id: compress-glob-flat
+        uses: .
+        with:
+          command: compress
+          source: ${{ github.workspace }}/glob-source/**/*.txt
+          dest: ${{ github.workspace }}/glob-output
+          destfilename: glob-flat
+          format: zip
+          preserveGlobStructure: "false"
+          verbose: "true"
+
+      - name: Assert flat glob compress succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-glob-flat.outputs.file_path }}
+          FILE_COUNT: ${{ steps.compress-glob-flat.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ] || [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: flat glob archive not found at $FILE_PATH"
+            exit 1
+          fi
+          if [ -z "$FILE_COUNT" ] || [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: expected at least 1 file, got $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: flat glob compress succeeded with $FILE_COUNT files"
+
+      - id: compress-glob-preserve
+        uses: .
+        with:
+          command: compress
+          source: ${{ github.workspace }}/glob-source/**/*.txt
+          dest: ${{ github.workspace }}/glob-output
+          destfilename: glob-preserve
+          format: zip
+          preserveGlobStructure: "true"
+          verbose: "true"
+
+      - name: Assert structure-preserving glob compress succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-glob-preserve.outputs.file_path }}
+          FILE_COUNT: ${{ steps.compress-glob-preserve.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ] || [ ! -f "$FILE_PATH" ]; then
+            echo "FAIL: structure-preserving glob archive not found at $FILE_PATH"
+            exit 1
+          fi
+          if [ -z "$FILE_COUNT" ] || [ "$FILE_COUNT" -lt 1 ]; then
+            echo "FAIL: expected at least 1 file, got $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: structure-preserving glob compress succeeded with $FILE_COUNT files"
