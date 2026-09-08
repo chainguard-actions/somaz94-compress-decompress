@@ -14,6 +14,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | v1.11.0 | [`v1.11.0`](https://github.com/chainguard-actions/somaz94-compress-decompress/tree/v1.11.0) | [`90843f6`](https://github.com/somaz94/compress-decompress/commit/90843f6d4c865405e18af03b2323e7162dc48c3f) |
 | v1.12.0 | [`v1.12.0`](https://github.com/chainguard-actions/somaz94-compress-decompress/tree/v1.12.0) | [`0bef10c`](https://github.com/somaz94/compress-decompress/commit/0bef10c189d3cdf9cd876f3b10cc48f9141c27ed) |
 | v1.12.1 | [`v1.12.1`](https://github.com/chainguard-actions/somaz94-compress-decompress/tree/v1.12.1) | [`5fe50ed`](https://github.com/somaz94/compress-decompress/commit/5fe50ed1861676e1ea9c6cff48eff02d44a5471a) |
+| v1.14.0 | [`v1.14.0`](https://github.com/chainguard-actions/somaz94-compress-decompress/tree/v1.14.0) | [`09cec27`](https://github.com/somaz94/compress-decompress/commit/09cec2725e56f6c12af4d1fabb3c62dc1edb7209) |
 | v1.9.0 | [`v1.9.0`](https://github.com/chainguard-actions/somaz94-compress-decompress/tree/v1.9.0) | [`173ca1e`](https://github.com/somaz94/compress-decompress/commit/173ca1ec02e20ccdd9db29e4235af72cf2c379b1) |
 | v1.9.1 | [`v1.9.1`](https://github.com/chainguard-actions/somaz94-compress-decompress/tree/v1.9.1) | [`00d6cd7`](https://github.com/somaz94/compress-decompress/commit/00d6cd7e1b25feaf83000c8b1345700c9a66b0b0) |
 
