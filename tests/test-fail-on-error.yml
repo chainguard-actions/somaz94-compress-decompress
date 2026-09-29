@@ -1,0 +1,62 @@
+name: Test fail_on_error behavior
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: compress-missing-source
+        uses: .
+        continue-on-error: true
+        with:
+          command: compress
+          source: nonexistent-source-dir
+          dest: fail-output
+          destfilename: should-fail
+          format: zip
+          fail_on_error: "true"
+          verbose: "true"
+
+      - name: Assert compress fails when source does not exist
+        env:
+          OUTCOME: ${{ steps.compress-missing-source.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed when source does not exist"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "FAIL: action should have failed but succeeded"
+            exit 1
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+
+      - name: Create source files for soft-fail test
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/softfail-source"
+          echo "Soft fail test" > "$GITHUB_WORKSPACE/softfail-source/test.txt"
+
+      - id: compress-softfail
+        uses: .
+        with:
+          command: compress
+          source: softfail-source
+          dest: softfail-output
+          destfilename: softfail-archive
+          format: zip
+          fail_on_error: "false"
+          verbose: "true"
+
+      - name: Assert compress with fail_on_error=false succeeds
+        env:
+          FILE_PATH: ${{ steps.compress-softfail.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          echo "PASS: compress with fail_on_error=false succeeded"

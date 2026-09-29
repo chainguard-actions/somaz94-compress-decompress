@@ -1,0 +1,74 @@
+name: Test exclude files and hidden file options
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files including hidden files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/exclude-source"
+          echo "Normal file" > "$GITHUB_WORKSPACE/exclude-source/normal.txt"
+          echo "Excluded file" > "$GITHUB_WORKSPACE/exclude-source/excluded.txt"
+          echo "Hidden file" > "$GITHUB_WORKSPACE/exclude-source/.hidden"
+          echo "Env file" > "$GITHUB_WORKSPACE/exclude-source/.env"
+
+      - id: compress-exclude
+        uses: .
+        with:
+          command: compress
+          source: exclude-source
+          dest: exclude-output
+          destfilename: excluded-archive
+          format: zip
+          exclude: "excluded.txt"
+          includeHidden: "false"
+          verbose: "true"
+
+      - name: Assert compress with exclude succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-exclude.outputs.file_path }}
+          FILE_COUNT: ${{ steps.compress-exclude.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          echo "PASS: archive created with exclude options"
+
+      - id: decompress-exclude
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress-exclude.outputs.file_path }}
+          dest: exclude-extracted
+          format: zip
+          verbose: "true"
+
+      - name: Assert excluded file is not in archive
+        run: |
+          echo "Contents of exclude-extracted:"
+          find "$GITHUB_WORKSPACE/exclude-extracted" -type f | sort
+          # normal.txt should be present
+          if find "$GITHUB_WORKSPACE/exclude-extracted" -name "normal.txt" | grep -q .; then
+            echo "PASS: normal.txt found in extracted output"
+          else
+            echo "FAIL: normal.txt not found in extracted output"
+            exit 1
+          fi
+          # excluded.txt should NOT be present
+          if find "$GITHUB_WORKSPACE/exclude-extracted" -name "excluded.txt" | grep -q .; then
+            echo "FAIL: excluded.txt should not be in the archive"
+            exit 1
+          fi
+          echo "PASS: excluded.txt correctly absent from archive"
+          # hidden files should NOT be present (includeHidden: false)
+          if find "$GITHUB_WORKSPACE/exclude-extracted" -name ".hidden" | grep -q .; then
+            echo "FAIL: .hidden should not be in the archive (includeHidden=false)"
+            exit 1
+          fi
+          echo "PASS: hidden files correctly absent from archive"

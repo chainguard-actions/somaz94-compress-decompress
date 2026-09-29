@@ -1,0 +1,78 @@
+name: Test compress tar format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tar-source"
+          echo "Tar test content" > "$GITHUB_WORKSPACE/tar-source/file1.txt"
+          echo "Another file" > "$GITHUB_WORKSPACE/tar-source/file2.txt"
+
+      - id: compress-tar
+        uses: .
+        with:
+          command: compress
+          source: tar-source
+          dest: tar-output
+          destfilename: archive
+          format: tar
+          verbose: "true"
+
+      - name: Assert tar archive created
+        env:
+          FILE_PATH: ${{ steps.compress-tar.outputs.file_path }}
+          CHECKSUM: ${{ steps.compress-tar.outputs.checksum }}
+          ORIGINAL_SIZE: ${{ steps.compress-tar.outputs.original_size }}
+          COMPRESSED_SIZE: ${{ steps.compress-tar.outputs.compressed_size }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "checksum: $CHECKSUM"
+          echo "original_size: $ORIGINAL_SIZE"
+          echo "compressed_size: $COMPRESSED_SIZE"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum is empty"
+            exit 1
+          fi
+          echo "PASS: tar archive created at $FILE_PATH"
+
+      - id: decompress-tar
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress-tar.outputs.file_path }}
+          dest: tar-extracted
+          format: tar
+          verbose: "true"
+
+      - name: Assert tar archive extracted
+        env:
+          FILE_PATH: ${{ steps.decompress-tar.outputs.file_path }}
+          FILE_COUNT: ${{ steps.decompress-tar.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty after decompress"
+            exit 1
+          fi
+          echo "PASS: tar decompress outputs are set"
+
+      - name: Assert extracted files exist
+        run: |
+          echo "Contents of tar-extracted:"
+          find "$GITHUB_WORKSPACE/tar-extracted" -type f | sort
+          if find "$GITHUB_WORKSPACE/tar-extracted" -name "file1.txt" | grep -q .; then
+            echo "PASS: file1.txt found in extracted output"
+          else
+            echo "FAIL: file1.txt not found in extracted output"
+            exit 1
+          fi

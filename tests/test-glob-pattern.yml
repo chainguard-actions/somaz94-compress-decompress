@@ -1,0 +1,81 @@
+name: Test glob pattern compression
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files with glob-matchable structure
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/glob-source/docs"
+          mkdir -p "$GITHUB_WORKSPACE/glob-source/src"
+          echo "Doc 1" > "$GITHUB_WORKSPACE/glob-source/docs/doc1.txt"
+          echo "Doc 2" > "$GITHUB_WORKSPACE/glob-source/docs/doc2.txt"
+          echo "Source 1" > "$GITHUB_WORKSPACE/glob-source/src/main.py"
+          echo "Not a txt" > "$GITHUB_WORKSPACE/glob-source/src/readme.md"
+
+      - id: compress-glob
+        uses: .
+        with:
+          command: compress
+          source: glob-source/**/*.txt
+          dest: glob-output
+          destfilename: glob-archive
+          format: zip
+          preserveGlobStructure: "true"
+          verbose: "true"
+
+      - name: Assert glob compress succeeded
+        env:
+          FILE_PATH: ${{ steps.compress-glob.outputs.file_path }}
+          FILE_COUNT: ${{ steps.compress-glob.outputs.file_count }}
+          CHECKSUM: ${{ steps.compress-glob.outputs.checksum }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          echo "checksum: $CHECKSUM"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum is empty"
+            exit 1
+          fi
+          echo "PASS: glob archive created at $FILE_PATH with $FILE_COUNT files"
+
+      - id: decompress-glob
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress-glob.outputs.file_path }}
+          dest: glob-extracted
+          format: zip
+          verbose: "true"
+
+      - name: Assert glob archive extracted and contains only txt files
+        env:
+          FILE_PATH: ${{ steps.decompress-glob.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty after decompress"
+            exit 1
+          fi
+          echo "Contents of glob-extracted:"
+          find "$GITHUB_WORKSPACE/glob-extracted" -type f | sort
+          # Should contain txt files
+          if find "$GITHUB_WORKSPACE/glob-extracted" -name "*.txt" | grep -q .; then
+            echo "PASS: txt files found in extracted output"
+          else
+            echo "FAIL: no txt files found in extracted output"
+            exit 1
+          fi
+          # Should NOT contain .md files (glob only matched .txt)
+          if find "$GITHUB_WORKSPACE/glob-extracted" -name "*.md" | grep -q .; then
+            echo "FAIL: .md files should not be in the archive (glob matched only .txt)"
+            exit 1
+          fi
+          echo "PASS: only txt files in archive as expected"

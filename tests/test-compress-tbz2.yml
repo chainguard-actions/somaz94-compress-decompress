@@ -1,0 +1,76 @@
+name: Test compress tbz2 (bzip2) format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tbz2-source"
+          echo "Bzip2 test content" > "$GITHUB_WORKSPACE/tbz2-source/file.txt"
+          echo "Another bzip2 file" > "$GITHUB_WORKSPACE/tbz2-source/file2.txt"
+
+      - id: compress-tbz2
+        uses: .
+        with:
+          command: compress
+          source: tbz2-source
+          dest: tbz2-output
+          destfilename: archive
+          format: tbz2
+          verbose: "true"
+
+      - name: Assert tbz2 archive created
+        env:
+          FILE_PATH: ${{ steps.compress-tbz2.outputs.file_path }}
+          CHECKSUM: ${{ steps.compress-tbz2.outputs.checksum }}
+          FILE_COUNT: ${{ steps.compress-tbz2.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "checksum: $CHECKSUM"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum is empty"
+            exit 1
+          fi
+          echo "PASS: tbz2 archive created at $FILE_PATH"
+
+      - id: decompress-tbz2
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress-tbz2.outputs.file_path }}
+          dest: tbz2-extracted
+          format: tbz2
+          verbose: "true"
+
+      - name: Assert tbz2 archive extracted
+        env:
+          FILE_PATH: ${{ steps.decompress-tbz2.outputs.file_path }}
+          FILE_COUNT: ${{ steps.decompress-tbz2.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty after decompress"
+            exit 1
+          fi
+          echo "PASS: tbz2 decompress outputs are set"
+
+      - name: Assert extracted files exist
+        run: |
+          echo "Contents of tbz2-extracted:"
+          find "$GITHUB_WORKSPACE/tbz2-extracted" -type f | sort
+          if find "$GITHUB_WORKSPACE/tbz2-extracted" -name "file.txt" | grep -q .; then
+            echo "PASS: file.txt found in extracted output"
+          else
+            echo "FAIL: file.txt not found in extracted output"
+            exit 1
+          fi

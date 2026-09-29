@@ -1,0 +1,89 @@
+name: Test compress tzst (zstandard) format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tzst-source"
+          echo "Zstandard test content" > "$GITHUB_WORKSPACE/tzst-source/data.txt"
+          echo "More data" > "$GITHUB_WORKSPACE/tzst-source/more.txt"
+          mkdir -p "$GITHUB_WORKSPACE/tzst-source/nested"
+          echo "Nested content" > "$GITHUB_WORKSPACE/tzst-source/nested/nested.txt"
+
+      - id: compress-tzst
+        uses: .
+        with:
+          command: compress
+          source: tzst-source
+          dest: tzst-output
+          destfilename: archive
+          format: tzst
+          compression_level: "3"
+          verbose: "true"
+
+      - name: Assert tzst archive created
+        env:
+          FILE_PATH: ${{ steps.compress-tzst.outputs.file_path }}
+          CHECKSUM: ${{ steps.compress-tzst.outputs.checksum }}
+          ORIGINAL_SIZE: ${{ steps.compress-tzst.outputs.original_size }}
+          COMPRESSED_SIZE: ${{ steps.compress-tzst.outputs.compressed_size }}
+          FILE_COUNT: ${{ steps.compress-tzst.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "checksum: $CHECKSUM"
+          echo "original_size: $ORIGINAL_SIZE"
+          echo "compressed_size: $COMPRESSED_SIZE"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum is empty"
+            exit 1
+          fi
+          echo "PASS: tzst archive created at $FILE_PATH"
+
+      - id: decompress-tzst
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress-tzst.outputs.file_path }}
+          dest: tzst-extracted
+          format: tzst
+          verbose: "true"
+
+      - name: Assert tzst archive extracted
+        env:
+          FILE_PATH: ${{ steps.decompress-tzst.outputs.file_path }}
+          FILE_COUNT: ${{ steps.decompress-tzst.outputs.file_count }}
+          DURATION: ${{ steps.decompress-tzst.outputs.duration }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          echo "duration: $DURATION"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty after decompress"
+            exit 1
+          fi
+          if [ -z "$FILE_COUNT" ]; then
+            echo "FAIL: file_count is empty after decompress"
+            exit 1
+          fi
+          echo "PASS: tzst decompress outputs are set"
+
+      - name: Assert extracted files exist
+        run: |
+          echo "Contents of tzst-extracted:"
+          find "$GITHUB_WORKSPACE/tzst-extracted" -type f | sort
+          if find "$GITHUB_WORKSPACE/tzst-extracted" -name "data.txt" | grep -q .; then
+            echo "PASS: data.txt found in extracted output"
+          else
+            echo "FAIL: data.txt not found in extracted output"
+            exit 1
+          fi

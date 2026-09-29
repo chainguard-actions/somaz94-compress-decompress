@@ -1,0 +1,80 @@
+name: Test compress txz (xz) format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/txz-source"
+          echo "XZ test content" > "$GITHUB_WORKSPACE/txz-source/file.txt"
+          echo "Another xz file" > "$GITHUB_WORKSPACE/txz-source/file2.txt"
+
+      - id: compress-txz
+        uses: .
+        with:
+          command: compress
+          source: txz-source
+          dest: txz-output
+          destfilename: archive
+          format: txz
+          verbose: "true"
+
+      - name: Assert txz archive created
+        env:
+          FILE_PATH: ${{ steps.compress-txz.outputs.file_path }}
+          CHECKSUM: ${{ steps.compress-txz.outputs.checksum }}
+          ORIGINAL_SIZE: ${{ steps.compress-txz.outputs.original_size }}
+          COMPRESSED_SIZE: ${{ steps.compress-txz.outputs.compressed_size }}
+          FILE_COUNT: ${{ steps.compress-txz.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "checksum: $CHECKSUM"
+          echo "original_size: $ORIGINAL_SIZE"
+          echo "compressed_size: $COMPRESSED_SIZE"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum is empty"
+            exit 1
+          fi
+          echo "PASS: txz archive created at $FILE_PATH"
+
+      - id: decompress-txz
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress-txz.outputs.file_path }}
+          dest: txz-extracted
+          format: txz
+          verbose: "true"
+
+      - name: Assert txz archive extracted
+        env:
+          FILE_PATH: ${{ steps.decompress-txz.outputs.file_path }}
+          FILE_COUNT: ${{ steps.decompress-txz.outputs.file_count }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "file_count: $FILE_COUNT"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty after decompress"
+            exit 1
+          fi
+          echo "PASS: txz decompress outputs are set"
+
+      - name: Assert extracted files exist
+        run: |
+          echo "Contents of txz-extracted:"
+          find "$GITHUB_WORKSPACE/txz-extracted" -type f | sort
+          if find "$GITHUB_WORKSPACE/txz-extracted" -name "file.txt" | grep -q .; then
+            echo "PASS: file.txt found in extracted output"
+          else
+            echo "FAIL: file.txt not found in extracted output"
+            exit 1
+          fi

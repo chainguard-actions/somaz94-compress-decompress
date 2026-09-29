@@ -1,0 +1,104 @@
+name: Test checksum verification on decompress
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source files
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/checksum-source"
+          echo "Checksum test content" > "$GITHUB_WORKSPACE/checksum-source/data.txt"
+
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: checksum-source
+          dest: checksum-output
+          destfilename: checksumtest
+          format: zip
+          verbose: "true"
+
+      - name: Assert compress succeeded and capture checksum
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          echo "checksum: $CHECKSUM"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty"
+            exit 1
+          fi
+          if [ -z "$CHECKSUM" ]; then
+            echo "FAIL: checksum is empty"
+            exit 1
+          fi
+          # Verify checksum format (64 hex chars for SHA256)
+          if ! echo "$CHECKSUM" | grep -qE '^[0-9a-f]{64}$'; then
+            echo "FAIL: checksum does not look like a SHA256 hash: $CHECKSUM"
+            exit 1
+          fi
+          echo "PASS: checksum is a valid SHA256 hash"
+
+      - id: decompress-valid-checksum
+        uses: .
+        with:
+          command: decompress
+          source: ${{ steps.compress.outputs.file_path }}
+          dest: checksum-extracted-valid
+          format: zip
+          verify_checksum: ${{ steps.compress.outputs.checksum }}
+          verbose: "true"
+
+      - name: Assert decompress with valid checksum succeeded
+        env:
+          FILE_PATH: ${{ steps.decompress-valid-checksum.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          if [ -z "$FILE_PATH" ]; then
+            echo "FAIL: file_path is empty after decompress with valid checksum"
+            exit 1
+          fi
+          echo "PASS: decompress with valid checksum succeeded"
+
+      - name: Assert extracted files exist
+        run: |
+          echo "Contents of checksum-extracted-valid:"
+          find "$GITHUB_WORKSPACE/checksum-extracted-valid" -type f | sort
+          if find "$GITHUB_WORKSPACE/checksum-extracted-valid" -name "data.txt" | grep -q .; then
+            echo "PASS: data.txt found in extracted output"
+          else
+            echo "FAIL: data.txt not found in extracted output"
+            exit 1
+          fi
+
+      - id: decompress-bad-checksum
+        uses: .
+        continue-on-error: true
+        with:
+          command: decompress
+          source: ${{ steps.compress.outputs.file_path }}
+          dest: checksum-extracted-bad
+          format: zip
+          verify_checksum: "0000000000000000000000000000000000000000000000000000000000000000"
+          fail_on_error: "true"
+          verbose: "true"
+
+      - name: Assert decompress with bad checksum fails
+        env:
+          OUTCOME: ${{ steps.decompress-bad-checksum.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: decompress correctly failed with bad checksum"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "FAIL: decompress should have failed with bad checksum but succeeded"
+            exit 1
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
