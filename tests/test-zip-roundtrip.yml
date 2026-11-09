@@ -1,0 +1,66 @@
+name: Test zip compress and decompress roundtrip
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create test files
+        run: |
+          rm -rf ziptestdir ziptestdir.zip zip-extracted
+          mkdir -p ziptestdir/subdir
+          echo "Hello World" > ziptestdir/file.txt
+          echo "Nested file" > ziptestdir/subdir/nested.txt
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./ziptestdir
+          format: zip
+          verbose: "true"
+      - name: Assert compress outputs and archive
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+          CHECKSUM: ${{ steps.compress.outputs.checksum }}
+          ORIGINAL_SIZE: ${{ steps.compress.outputs.original_size }}
+          COMPRESSED_SIZE: ${{ steps.compress.outputs.compressed_size }}
+          COMPRESSION_RATIO: ${{ steps.compress.outputs.compression_ratio }}
+          FILE_COUNT: ${{ steps.compress.outputs.file_count }}
+          DURATION: ${{ steps.compress.outputs.duration }}
+        run: |
+          set -u
+          for key in FILE_PATH CHECKSUM ORIGINAL_SIZE COMPRESSED_SIZE COMPRESSION_RATIO FILE_COUNT DURATION; do
+            echo "$key=${!key}"
+            if [ -z "${!key}" ]; then echo "FAIL: empty output $key"; exit 1; fi
+          done
+          if [ "$FILE_COUNT" != "2" ]; then echo "FAIL: file_count expected 2"; exit 1; fi
+          case "$FILE_PATH" in
+            *ziptestdir.zip) ;;
+            *) echo "FAIL: file_path should end with ziptestdir.zip"; exit 1 ;;
+          esac
+          if [ ! -f ziptestdir.zip ]; then echo "FAIL: ziptestdir.zip not found"; exit 1; fi
+          if [ -e ziptestdir/ziptestdir.zip ]; then echo "FAIL: archive leaked into source dir"; exit 1; fi
+          ACTUAL_SUM=$(sha256sum ziptestdir.zip | awk '{print $1}')
+          echo "actual sha256: $ACTUAL_SUM"
+          if [ "$ACTUAL_SUM" != "$CHECKSUM" ]; then echo "FAIL: checksum mismatch"; exit 1; fi
+          if ! echo "$CHECKSUM" | grep -qE '^[0-9a-f]{64}$'; then echo "FAIL: checksum not sha256 hex"; exit 1; fi
+          echo "PASS"
+      - id: decompress
+        uses: .
+        with:
+          command: decompress
+          source: ./ziptestdir.zip
+          format: zip
+          dest: ./zip-extracted
+          verify_checksum: ${{ steps.compress.outputs.checksum }}
+      - name: Assert extraction
+        env:
+          FILE_COUNT: ${{ steps.decompress.outputs.file_count }}
+        run: |
+          find zip-extracted -type f | sort
+          echo "decompress file_count: $FILE_COUNT"
+          if [ "$(cat zip-extracted/ziptestdir/file.txt)" != "Hello World" ]; then echo "FAIL: file.txt content"; exit 1; fi
+          if [ "$(cat zip-extracted/ziptestdir/subdir/nested.txt)" != "Nested file" ]; then echo "FAIL: nested.txt content"; exit 1; fi
+          if [ "$FILE_COUNT" != "2" ]; then echo "FAIL: decompress file_count expected 2"; exit 1; fi
+          echo "PASS"

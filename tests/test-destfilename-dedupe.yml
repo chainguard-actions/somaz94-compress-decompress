@@ -1,0 +1,35 @@
+name: Test dest and destfilename with extension dedupe
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create test files
+        run: |
+          rm -rf namedsrc named-out
+          mkdir -p namedsrc
+          echo "data" > namedsrc/data.txt
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./namedsrc
+          format: tar
+          dest: ./named-out
+          destfilename: release.tar
+      - name: Assert archive name
+        env:
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_path: $FILE_PATH"
+          ls -la named-out || true
+          if [ ! -f named-out/release.tar ]; then echo "FAIL: named-out/release.tar not found"; exit 1; fi
+          if [ -e named-out/release.tar.tar ]; then echo "FAIL: extension was duplicated"; exit 1; fi
+          case "$FILE_PATH" in
+            *named-out/release.tar) ;;
+            *) echo "FAIL: unexpected file_path"; exit 1 ;;
+          esac
+          tar -tf named-out/release.tar | grep -q 'namedsrc/data.txt' || { echo "FAIL: data.txt missing"; exit 1; }
+          echo "PASS"

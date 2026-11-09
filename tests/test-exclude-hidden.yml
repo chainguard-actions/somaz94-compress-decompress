@@ -1,0 +1,35 @@
+name: Test includeHidden false drops dotfiles
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create test files
+        run: |
+          rm -rf hiddendir hiddendir.tar
+          mkdir -p hiddendir/sub
+          echo "visible" > hiddendir/visible.txt
+          echo "SECRET=1" > hiddendir/.env
+          echo "nested hidden" > hiddendir/sub/.hidden
+          echo "nested visible" > hiddendir/sub/shown.txt
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: ./hiddendir
+          format: tar
+          includeHidden: "false"
+      - name: Assert dotfiles excluded
+        env:
+          FILE_COUNT: ${{ steps.compress.outputs.file_count }}
+        run: |
+          echo "file_count: $FILE_COUNT"
+          if [ ! -f hiddendir.tar ]; then echo "FAIL: hiddendir.tar not found"; exit 1; fi
+          LIST=$(tar -tf hiddendir.tar)
+          echo "$LIST"
+          if echo "$LIST" | grep -qE '/\.(env|hidden)$'; then echo "FAIL: hidden file present"; exit 1; fi
+          echo "$LIST" | grep -q 'hiddendir/visible.txt' || { echo "FAIL: visible.txt missing"; exit 1; }
+          echo "$LIST" | grep -q 'hiddendir/sub/shown.txt' || { echo "FAIL: shown.txt missing"; exit 1; }
+          echo "PASS"

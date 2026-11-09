@@ -1,0 +1,44 @@
+name: Test glob pattern source (flattened)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create test files
+        run: |
+          rm -rf globsrc glob-out
+          mkdir -p globsrc/a globsrc/b
+          echo "one" > globsrc/a/one.doc
+          echo "two" > globsrc/b/two.doc
+          echo "ignored" > globsrc/b/skip.txt
+      - id: compress
+        uses: .
+        with:
+          command: compress
+          source: "globsrc/**/*.doc"
+          format: zip
+          dest: ./glob-out
+          destfilename: docs
+          includeRoot: "false"
+      - name: Assert glob archive
+        env:
+          FILE_COUNT: ${{ steps.compress.outputs.file_count }}
+          FILE_PATH: ${{ steps.compress.outputs.file_path }}
+        run: |
+          echo "file_count: $FILE_COUNT"
+          echo "file_path: $FILE_PATH"
+          if [ ! -f glob-out/docs.zip ]; then echo "FAIL: glob-out/docs.zip not found"; ls -la glob-out || true; exit 1; fi
+          if [ "$FILE_COUNT" != "2" ]; then echo "FAIL: expected file_count 2"; exit 1; fi
+          python3 - <<'EOF'
+          import zipfile, sys
+          names = sorted(n for n in zipfile.ZipFile("glob-out/docs.zip").namelist() if not n.endswith("/"))
+          print(names)
+          base = sorted(n.split("/")[-1] for n in names)
+          if base != ["one.doc", "two.doc"]:
+              print("FAIL: unexpected entries"); sys.exit(1)
+          if any("/" in n.lstrip("./") for n in names):
+              print("FAIL: expected flattened entries"); sys.exit(1)
+          print("PASS")
+          EOF
